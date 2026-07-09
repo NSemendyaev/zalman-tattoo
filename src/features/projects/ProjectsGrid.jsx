@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import supabase from "../../lib/supabaseClient";
 import AddNewSession from "../../components/modals/AddNewSession";
 
@@ -115,6 +115,7 @@ function ProjectDetails({ onClose, clientId }) {
       const { data, error } = await supabase
         .from('Project')
         .select(`
+          id,
           project_title,
           cartridge_brand,
           configuration,
@@ -142,7 +143,7 @@ function ProjectDetails({ onClose, clientId }) {
 
 
   if (isNewSessionFormOpen) {
-    return <AddNewSession />;
+    return <AddNewSession onClick={() => setIsNewSessionFormOpen(false)} projectId={projectDetails[0]['id']} />;
   }
 
   return (
@@ -157,7 +158,7 @@ function ProjectDetails({ onClose, clientId }) {
                 <span className="details-label">Sessions</span>
                 <span><button className="button button-secondary" onClick={() => setIsNewSessionFormOpen(true)}>Add New Session</button></span>
               </div>
-              <SessionGrid onClick={() => setIsSessionDetailsOpen(!isSessionDetailsOpen)} />
+              <SessionGrid onClick={() => setIsSessionDetailsOpen(!isSessionDetailsOpen)} projectId={projectDetails[0]['id']} />
             </div>
 
             {/* Session details are placeholder content until sessions are stored
@@ -231,24 +232,60 @@ function ProjectDetails({ onClose, clientId }) {
   );
 }
 
-function SessionGrid({ onClick }) {
-  // These are temporary hard-coded sessions. A next step would be to fetch real
-  // session rows and render them from an array, like the project cards above.
-  return (
-    <div className="cards-grid">
-      <Session message="1" onClick={onClick} />
-      <Session message="2" onClick={onClick} />
-      <Session message="3" onClick={onClick} />
-      <Session message="4" onClick={onClick} />
-    </div>
-  );
+function SessionGrid({ onClick, projectId }) {
+  const [sessionDetails, setSessionDetails] = useState(undefined);
+
+  useEffect(() => {
+
+    console.log(`Project ID: ${projectId}`);
+
+    async function fetchSessionDetails() {
+      let { data: Session, error } = await supabase
+        .from('Session')
+        .select("*")
+        // Filters
+        .eq('project_id', projectId);
+
+      if (Session) {
+        console.log("Success");
+        setSessionDetails(Session);
+        console.log(Session);
+      } else {
+        console.log(error);
+      }
+
+    }
+
+    fetchSessionDetails();
+  }, []);
+
+
+  if (sessionDetails) {
+    console.log("Sessions have been fetched");
+    return (<div className="cards-grid">
+      {sessionDetails.map((detail, index) => {
+        return (<Session onClick={onClick} sessionDetails={detail.session_description} duration={detail.duration} date={detail.date} amount_paid={detail.amount_paid} />);
+      })}
+    </div>);
+  } else {
+    return <div className="cards-grid"></div>
+  }
+
 }
 
-function Session({ message, onClick }) {
+function Session({ onClick, sessionDetails, duration, date, amount_paid }) {
+  const [sessionFetched, setSessionFetched] = useState(false);
+
+  useEffect(() => {
+    setSessionFetched(true);
+  });
+
+  console.log(sessionDetails, duration, date, amount_paid);
+
   return (
     <button className="project-card session-card" onClick={onClick}>
       <span className="project-preview">
-        <strong>Session {message}</strong>
+        <strong>Date: {date}</strong>
       </span>
     </button>
   );
