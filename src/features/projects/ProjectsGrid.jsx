@@ -103,6 +103,14 @@ function ProjectCard({ clientName, status, nextSessionDate, clientId }) {
   );
 }
 
+
+/*
+const { data } = supabase
+  .storage
+  .from('public-bucket')
+  .getPublicUrl('folder/avatar1.png')
+*/
+
 function ProjectDetails({ onClose, clientId }) {
   const [projectDetails, setProjectDetails] = useState(null);
   const [isSessionDetailsOpen, setIsSessionDetailsOpen] = useState(false);
@@ -152,19 +160,26 @@ function ProjectDetails({ onClose, clientId }) {
         <button className="close" type="button" onClick={onClose}>&times;</button>
         {projectDetails && projectDetails.map((detail, index) => (
           <div className="project-details" key={index}>
-            <h2>{detail.project_title}</h2>
-            <div>
-              <div className="details-row">
-                <span className="details-label">Sessions</span>
-                <span><button className="button button-secondary" onClick={() => setIsNewSessionFormOpen(true)}>Add New Session</button></span>
-              </div>
-              <SessionGrid onClick={() => setIsSessionDetailsOpen(!isSessionDetailsOpen)} projectId={projectDetails[0]['id']} />
+            <div className="project-details-header">
+              <span className="project-card-kicker">Project</span>
+              <h2>{detail.project_title}</h2>
             </div>
 
-            {/* Session details are placeholder content until sessions are stored
-                and fetched from Supabase. */}
-            {isSessionDetailsOpen &&
-              <>
+            <section className="details-section sessions-section">
+              <div className="details-section-heading">
+                <div>
+                  <span className="project-card-kicker">Sessions</span>
+                  <h3>Session History</h3>
+                </div>
+                <button className="button button-secondary" onClick={() => setIsNewSessionFormOpen(true)}>Add New Session</button>
+              </div>
+              <SessionGrid onClick={() => setIsSessionDetailsOpen(!isSessionDetailsOpen)} projectId={projectDetails[0]['id']} />
+
+              {/* Session details are placeholder content until sessions are stored
+                  and fetched from Supabase. */}
+              {isSessionDetailsOpen &&
+                <div className="session-details-panel">
+                  <span className="project-card-kicker">Selected Session</span>
                 <div className="details-row">
                   <span className="details-label">Session Description:</span>
                   <span>Text</span>
@@ -190,41 +205,50 @@ function ProjectDetails({ onClose, clientId }) {
                   <span>Photo</span>
                 </div>
 
-              </>
-            }
+                </div>
+              }
+            </section>
 
-            <div className="details-row">
-              <span className="details-label">Client</span>
-              <span>{detail.Client.first_name} {detail.Client.last_name}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">Cartridge Brand</span>
-              <span>{detail.cartridge_brand}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">Configuration</span>
-              <span>{detail.configuration}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">Start Date</span>
-              <span>{detail.date_start}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">End Date</span>
-              <span>{detail.date_end}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">Total Price</span>
-              <span>{detail.total_price}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">Deposit Paid</span>
-              <span>{detail.deposit_paid ? "Yes" : "No"}</span>
-            </div>
-            <div className="details-row">
-              <span className="details-label">Feedback</span>
-              <span>{detail.feedback}</span>
-            </div>
+            <section className="details-section project-info-section">
+              <div className="details-section-heading">
+                <div>
+                  <span className="project-card-kicker">Details</span>
+                  <h3>Project Information</h3>
+                </div>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Client</span>
+                <span>{detail.Client.first_name} {detail.Client.last_name}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Cartridge Brand</span>
+                <span>{detail.cartridge_brand}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Configuration</span>
+                <span>{detail.configuration}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Start Date</span>
+                <span>{detail.date_start}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">End Date</span>
+                <span>{detail.date_end}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Total Price</span>
+                <span>{detail.total_price}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Deposit Paid</span>
+                <span>{detail.deposit_paid ? "Yes" : "No"}</span>
+              </div>
+              <div className="details-row">
+                <span className="details-label">Feedback</span>
+                <span>{detail.feedback}</span>
+              </div>
+            </section>
           </div>
         ))}
       </div>

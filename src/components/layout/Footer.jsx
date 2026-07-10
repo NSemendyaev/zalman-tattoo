@@ -4,8 +4,9 @@ export default function Footer() {
   return (
     <div className="app-footer">
       <div className="footer-actions">
-        <button className="button button-ghost">Instagram</button>
-        <button className="button button-ghost">WhatsApp</button>
+        <form action="https://www.instagram.com/zalman.tattoo/">
+          <button className="button button-ghost">Instagram</button>
+        </form>
       </div>
     </div>
   );

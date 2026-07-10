@@ -31,7 +31,16 @@ export default function FileUploader({ projectId }) {
                 try {
                     const { data, error } = await supabase.storage
                         .from('Session Photos')
-                        .upload(`project${projectId}/${file.name}${photoIdForThisSession++}`, file)
+                        .upload(`project${projectId}/${file.name}${photoIdForThisSession++}`, file);
+
+                    // Test getPublicUrl
+                    /*
+                    const { data } = supabase
+                        .storage
+                        .from('public-bucket')
+                        .getPublicUrl('folder/avatar1.png')
+                    */
+
                 } catch (error) {
                     console.log(error);
                 }
