@@ -1,83 +1,118 @@
-import { useState } from "react";
-import FileUploader from "../../features/uploader/FileUploader";
-import supabase from "../../lib/supabaseClient";
+import { useState } from 'react';
+import supabase from '../../lib/supabaseClient';
 
-export default function AddNewSession({ onClick, projectId }) {
-    const [sessionDescription, setSessionDescription] = useState('');
-    const [sessionDate, setSessionDate] = useState('');
-    const [duration, setDuration] = useState('');
-    const [amountPaid, setAmountPaid] = useState(0);
-    const [photos, setPhotos] = useState(undefined);
+export default function AddNewSession({ onClose, projectId }) {
+  const [sessionDescription, setSessionDescription] = useState('');
+  const [sessionDate, setSessionDate] = useState('');
+  const [duration, setDuration] = useState('');
+  const [amountPaid, setAmountPaid] = useState(0);
+  const [selectedFiles, setSelectedFiles] = useState(null);
 
-    async function handleNewSessionInsert(event) {
+  function handleFileSelection(event) {
+    setSelectedFiles(Array.from(event.target.files ?? []));
+  }
 
-        if (sessionDescription !== '' && sessionDate !== '' && duration !== '' && amountPaid !== 0) {
-            try {
-                const { data, error } = await supabase
-                    .from('Session')
-                    .insert([
-                        {
-                            project_id: projectId,
-                            session_description: sessionDescription,
-                            date: sessionDate,
-                            duration: duration,
-                            amount_paid: amountPaid
-                        },
-                    ])
-                    .select();
-            } catch (error) {
-                console.log(error);
-            }
-        }
+  // This path is used both when uploading a file and when retrieving its URL.
+  function getPhotoPath(file, photoNumber) {
+    return `project${projectId}/${file.name}${photoNumber}`;
+  }
 
+  async function uploadSessionPhotos() {
+    if (!selectedFiles) {
+      return;
     }
 
-    console.log(projectId);
+    let photoNumber = 1;
+    for (const file of selectedFiles) {
+      const filePath = getPhotoPath(file, photoNumber++);
+      const { error } = await supabase.storage
+        .from('Session Photos')
+        .upload(filePath, file);
 
-    // This modal is the UI skeleton for adding session data. It collects the same
-    // kind of fields shown in ProjectDetails, but it does not save to Supabase yet.
-    return (
-        <div id="new-session-modal" className="modal">
-            <div className="modal-content">
-                <button className="close" type="button" onClick={onClick}>&times;</button>
-                <div className="modal-heading">
-                    <p className="eyebrow">Session</p>
-                    <h2>Add session</h2>
-                </div>
-                <form action="" method="get" className="form-example">
+      if (error) {
+        console.log(error);
+      }
+    }
+  }
 
-                    <div className="form-example">
-                        <label htmlFor="session-description">Session Description: </label>
-                        <input type="text" id="session-description" onChange={(event) => { setSessionDescription(event.target.value) }} />
-                    </div>
+  async function insertSession() {
+    const imageUrls = [];
+    let photoNumber = 1;
 
-                    <div className="form-example">
-                        <label htmlFor="session-date">Date: </label>
-                        <input type="date" id="session-date" onChange={(event) => { setSessionDate(event.target.value) }} />
-                    </div>
+    for (const file of selectedFiles ?? []) {
+      const { data } = supabase.storage
+        .from('Session Photos')
+        .getPublicUrl(getPhotoPath(file, photoNumber++));
+      imageUrls.push(data.publicUrl);
+    }
 
-                    <div className="form-example">
-                        <label htmlFor="session-duration">Duration: </label>
-                        <input type="time" id="session-duration" onChange={(event) => { setDuration(event.target.value) }} />
-                    </div>
+    if (sessionDescription === '' || sessionDate === '' || duration === '' || amountPaid === 0) {
+      return;
+    }
 
-                    <div className="form-example">
-                        <label htmlFor="session-price">Amount Paid: </label>
-                        <input type="number" id="session-price" onChange={(event) => { setAmountPaid(event.target.value) }} />
-                    </div>
+    const { error } = await supabase
+      .from('Session')
+      .insert([
+        {
+          project_id: projectId,
+          session_description: sessionDescription,
+          date: sessionDate,
+          duration,
+          amount_paid: amountPaid,
+          img_urls: imageUrls,
+        },
+      ])
+      .select();
 
-                    <div className="form-example">
-                        <label htmlFor="session-photos">Photos: </label>
-                        <FileUploader projectId={projectId} />
-                    </div>
+    if (error) {
+      console.log(error);
+    }
+  }
 
-                    <div className="form-example">
-                        <button type="button" onClick={handleNewSessionInsert}>Add</button>
-                    </div>
+  function handleAddSession() {
+    uploadSessionPhotos();
+    insertSession();
+  }
 
-                </form>
+  return (
+    <div id="new-session-modal" className="modal">
+      <div className="modal-content">
+        <button className="close" type="button" onClick={onClose}>&times;</button>
+        <div className="modal-heading">
+          <p className="eyebrow">Session</p>
+          <h2>Add session</h2>
+        </div>
+        <form className="form-stack">
+          <div className="form-field">
+            <label htmlFor="session-description">Session Description</label>
+            <input type="text" id="session-description" onChange={(event) => setSessionDescription(event.target.value)} />
+          </div>
 
-            </div >
-        </div >
-    );
+          <div className="form-field">
+            <label htmlFor="session-date">Date</label>
+            <input type="date" id="session-date" onChange={(event) => setSessionDate(event.target.value)} />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="session-duration">Duration</label>
+            <input type="time" id="session-duration" onChange={(event) => setDuration(event.target.value)} />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="session-price">Amount Paid</label>
+            <input type="number" id="session-price" onChange={(event) => setAmountPaid(event.target.value)} />
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="session-photos">Photos</label>
+            <input type="file" id="session-photos" onChange={handleFileSelection} multiple />
+          </div>
+
+          <div className="form-field">
+            <button type="button" onClick={handleAddSession}>Add</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }

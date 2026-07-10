@@ -1,14 +1,12 @@
-import { use, useEffect, useState } from "react";
-import supabase from "../../lib/supabaseClient";
-import AddNewSession from "../../components/modals/AddNewSession";
+import { useEffect, useState } from 'react';
+import AddNewSession from '../../components/modals/AddNewSession';
+import supabase from '../../lib/supabaseClient';
 
 export default function ProjectsGrid() {
-  const [projects, setProjects] = useState(null);
+  const [projectSummaries, setProjectSummaries] = useState(null);
 
   useEffect(() => {
-    // Fetch only the fields needed for the grid cards. The full project record
-    // is loaded later, when the user opens a specific project.
-    const fetchProjectSummaries = async () => {
+    async function fetchProjectSummaries() {
       const { data, error } = await supabase
         .from('Project')
         .select(`
@@ -19,77 +17,66 @@ export default function ProjectsGrid() {
             last_name
           )
         `);
+
       if (error) {
         console.log(error);
         return;
       }
-      console.log(data);
-      setProjects(data);
-    };
+
+      setProjectSummaries(data);
+    }
 
     fetchProjectSummaries();
   }, []);
 
-  if (!projects) {
-    return (
-      <section className="dashboard-section">
-        <div className="dashboard-heading">
-          <p className="dashboard-meta">Loading projects...</p>
-          <div className="grid-actions">
-            <button className="button button-secondary">Sort by</button>
-            <button className="button button-secondary">Filter</button>
-          </div>
-        </div>
-        <div className="cards-grid">
-          <div className="project-card project-card-loading"></div>
-          <div className="project-card project-card-loading"></div>
-          <div className="project-card project-card-loading"></div>
-        </div>
-      </section>
-    );
-  }
+  const isLoading = projectSummaries === null;
 
   return (
     <section className="dashboard-section">
-      <div className="dashboard-heading">
-        <p className="dashboard-meta">{projects.length} active records</p>
-        <div className="grid-actions">
-          <button className="button button-secondary">Sort by</button>
-          <button className="button button-secondary">Filter</button>
-        </div>
-      </div>
+      <DashboardHeader
+        recordCount={projectSummaries?.length}
+        isLoading={isLoading}
+      />
 
       <div className="cards-grid">
-        {projects.map((project) => (
-          <ProjectCard
-            key={project.client_id}
-            clientName={`${project.Client.first_name} ${project.Client.last_name}`}
-            status='PLACEHOLDER'
-            nextSessionDate={project.date_end}
-            clientId={project.client_id}
-          />
-        ))}
+        {isLoading
+          ? Array.from({ length: 3 }, (_, index) => (
+            <div className="project-card project-card-loading" key={index} />
+          ))
+          : projectSummaries.map((project) => (
+            <ProjectCard
+              key={project.client_id}
+              clientId={project.client_id}
+              clientName={`${project.Client.first_name} ${project.Client.last_name}`}
+              nextSessionDate={project.date_end}
+              status="PLACEHOLDER"
+            />
+          ))}
       </div>
     </section>
   );
 }
 
-function ProjectCard({ clientName, status, nextSessionDate, clientId }) {
-  const [isProjectDetailsOpen, setIsProjectDetailsOpen] = useState(false);
+function DashboardHeader({ recordCount, isLoading }) {
+  return (
+    <div className="dashboard-heading">
+      <p className="dashboard-meta">
+        {isLoading ? 'Loading projects...' : `${recordCount} active records`}
+      </p>
+      <div className="grid-actions">
+        <button className="button button-secondary">Sort by</button>
+        <button className="button button-secondary">Filter</button>
+      </div>
+    </div>
+  );
+}
 
-  // This button currently acts as a visual project card. The data-* attributes
-  // keep useful debugging metadata in the DOM without relying on invalid custom
-  // HTML attributes such as `next_session`.
+function ProjectCard({ clientId, clientName, nextSessionDate, status }) {
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
   return (
     <>
-      <button
-        className="project-card"
-        data-client-name={clientName}
-        data-status={status}
-        data-next-session={nextSessionDate}
-        data-client-id={clientId}
-        onClick={() => setIsProjectDetailsOpen(true)}
-      >
+      <button className="project-card" onClick={() => setIsDetailsOpen(true)}>
         <span className="project-preview">
           <span className="project-card-kicker">Client</span>
           <strong>{clientName}</strong>
@@ -98,28 +85,24 @@ function ProjectCard({ clientName, status, nextSessionDate, clientId }) {
           <span>{nextSessionDate}</span>
         </span>
       </button>
-      {isProjectDetailsOpen ? <ProjectDetails clientId={clientId} onClose={() => setIsProjectDetailsOpen(false)} /> : null}
+      {isDetailsOpen && (
+        <ProjectDetails
+          clientId={clientId}
+          onClose={() => setIsDetailsOpen(false)}
+        />
+      )}
     </>
   );
 }
 
-
-/*
-const { data } = supabase
-  .storage
-  .from('public-bucket')
-  .getPublicUrl('folder/avatar1.png')
-*/
-
-function ProjectDetails({ onClose, clientId }) {
-  const [projectDetails, setProjectDetails] = useState(null);
-  const [isSessionDetailsOpen, setIsSessionDetailsOpen] = useState(false);
+function ProjectDetails({ clientId, onClose }) {
+  const [projects, setProjects] = useState(null);
+  const [selectedSession, setSelectedSession] = useState(null);
   const [isNewSessionFormOpen, setIsNewSessionFormOpen] = useState(false);
+  const [projectIdForNewSession, setProjectIdForNewSession] = useState(null);
 
   useEffect(() => {
-    // The modal receives clientId from the card, then asks Supabase for the
-    // detailed project fields that would make the grid too heavy/noisy.
-    const fetchProjectDetails = async () => {
+    async function fetchProjectDetails() {
       const { data, error } = await supabase
         .from('Project')
         .select(`
@@ -138,31 +121,41 @@ function ProjectDetails({ onClose, clientId }) {
           )
         `)
         .eq('client_id', clientId);
+
       if (error) {
         console.log(error);
         return;
       }
-      console.log(data);
-      setProjectDetails(data);
-    };
+
+      setProjects(data);
+    }
 
     fetchProjectDetails();
   }, [clientId]);
 
+  function openNewSessionForm(projectId) {
+    setProjectIdForNewSession(projectId);
+    setIsNewSessionFormOpen(true);
+  }
 
   if (isNewSessionFormOpen) {
-    return <AddNewSession onClick={() => setIsNewSessionFormOpen(false)} projectId={projectDetails[0]['id']} />;
+    return (
+      <AddNewSession
+        onClose={() => setIsNewSessionFormOpen(false)}
+        projectId={projectIdForNewSession}
+      />
+    );
   }
 
   return (
     <div id="project-details-modal" className="modal">
       <div className="modal-content">
         <button className="close" type="button" onClick={onClose}>&times;</button>
-        {projectDetails && projectDetails.map((detail, index) => (
-          <div className="project-details" key={index}>
+        {projects?.map((project) => (
+          <div className="project-details" key={project.id}>
             <div className="project-details-header">
               <span className="project-card-kicker">Project</span>
-              <h2>{detail.project_title}</h2>
+              <h2>{project.project_title}</h2>
             </div>
 
             <section className="details-section sessions-section">
@@ -171,84 +164,21 @@ function ProjectDetails({ onClose, clientId }) {
                   <span className="project-card-kicker">Sessions</span>
                   <h3>Session History</h3>
                 </div>
-                <button className="button button-secondary" onClick={() => setIsNewSessionFormOpen(true)}>Add New Session</button>
+                <button
+                  className="button button-secondary"
+                  onClick={() => openNewSessionForm(project.id)}
+                >
+                  Add New Session
+                </button>
               </div>
-              <SessionGrid onClick={() => setIsSessionDetailsOpen(!isSessionDetailsOpen)} projectId={projectDetails[0]['id']} />
-
-              {/* Session details are placeholder content until sessions are stored
-                  and fetched from Supabase. */}
-              {isSessionDetailsOpen &&
-                <div className="session-details-panel">
-                  <span className="project-card-kicker">Selected Session</span>
-                <div className="details-row">
-                  <span className="details-label">Session Description:</span>
-                  <span>Text</span>
-                </div>
-
-                <div className="details-row">
-                  <span className="details-label">Date:</span>
-                  <span>Text</span>
-                </div>
-
-                <div className="details-row">
-                  <span className="details-label">Duration:</span>
-                  <span>Text</span>
-                </div>
-
-                <div className="details-row">
-                  <span className="details-label">Amount Paid:</span>
-                  <span>Text</span>
-                </div>
-
-                <div className="details-row">
-                  <span className="details-label">Photos:</span>
-                  <span>Photo</span>
-                </div>
-
-                </div>
-              }
+              <SessionGrid
+                onSelectSession={setSelectedSession}
+                projectId={project.id}
+              />
+              {selectedSession && <SessionDetails session={selectedSession} />}
             </section>
 
-            <section className="details-section project-info-section">
-              <div className="details-section-heading">
-                <div>
-                  <span className="project-card-kicker">Details</span>
-                  <h3>Project Information</h3>
-                </div>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Client</span>
-                <span>{detail.Client.first_name} {detail.Client.last_name}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Cartridge Brand</span>
-                <span>{detail.cartridge_brand}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Configuration</span>
-                <span>{detail.configuration}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Start Date</span>
-                <span>{detail.date_start}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">End Date</span>
-                <span>{detail.date_end}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Total Price</span>
-                <span>{detail.total_price}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Deposit Paid</span>
-                <span>{detail.deposit_paid ? "Yes" : "No"}</span>
-              </div>
-              <div className="details-row">
-                <span className="details-label">Feedback</span>
-                <span>{detail.feedback}</span>
-              </div>
-            </section>
+            <ProjectInfo project={project} />
           </div>
         ))}
       </div>
@@ -256,61 +186,106 @@ function ProjectDetails({ onClose, clientId }) {
   );
 }
 
-function SessionGrid({ onClick, projectId }) {
-  const [sessionDetails, setSessionDetails] = useState(undefined);
+function SessionGrid({ onSelectSession, projectId }) {
+  const [sessions, setSessions] = useState(null);
 
   useEffect(() => {
-
-    console.log(`Project ID: ${projectId}`);
-
-    async function fetchSessionDetails() {
-      let { data: Session, error } = await supabase
+    async function fetchSessions() {
+      const { data, error } = await supabase
         .from('Session')
-        .select("*")
-        // Filters
+        .select('*')
         .eq('project_id', projectId);
 
-      if (Session) {
-        console.log("Success");
-        setSessionDetails(Session);
-        console.log(Session);
-      } else {
+      if (error) {
         console.log(error);
+        return;
       }
 
+      setSessions(data);
     }
 
-    fetchSessionDetails();
-  }, []);
+    fetchSessions();
+  }, [projectId]);
 
-
-  if (sessionDetails) {
-    console.log("Sessions have been fetched");
-    return (<div className="cards-grid">
-      {sessionDetails.map((detail, index) => {
-        return (<Session onClick={onClick} sessionDetails={detail.session_description} duration={detail.duration} date={detail.date} amount_paid={detail.amount_paid} />);
-      })}
-    </div>);
-  } else {
-    return <div className="cards-grid"></div>
+  if (!sessions) {
+    return <div className="cards-grid" />;
   }
 
+  return (
+    <div className="cards-grid">
+      {sessions.map((session) => (
+        <SessionCard
+          key={session.id}
+          onClick={() => onSelectSession(session)}
+          session={session}
+        />
+      ))}
+    </div>
+  );
 }
 
-function Session({ onClick, sessionDetails, duration, date, amount_paid }) {
-  const [sessionFetched, setSessionFetched] = useState(false);
-
-  useEffect(() => {
-    setSessionFetched(true);
-  });
-
-  console.log(sessionDetails, duration, date, amount_paid);
-
+function SessionCard({ onClick, session }) {
   return (
     <button className="project-card session-card" onClick={onClick}>
       <span className="project-preview">
-        <strong>Date: {date}</strong>
+        <strong>Date: {session.date}</strong>
       </span>
     </button>
+  );
+}
+
+function SessionDetails({ session }) {
+  return (
+    <div className="session-details-panel">
+      <span className="project-card-kicker">Selected Session</span>
+      <DetailRow label="Session Description" value={session.session_description} />
+      <DetailRow label="Date" value={session.date} />
+      <DetailRow label="Duration" value={session.duration} />
+      <DetailRow label="Amount Paid" value={session.amount_paid} />
+      <div className="details-row">
+        <span className="details-label">Photos</span>
+        <div className="session-photo-grid">
+          {session.img_urls?.map((url) => (
+            <img className="session-photo" key={url} src={url} alt="Session work" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectInfo({ project }) {
+  const details = [
+    ['Client', `${project.Client.first_name} ${project.Client.last_name}`],
+    ['Cartridge Brand', project.cartridge_brand],
+    ['Configuration', project.configuration],
+    ['Start Date', project.date_start],
+    ['End Date', project.date_end],
+    ['Total Price', project.total_price],
+    ['Deposit Paid', project.deposit_paid ? 'Yes' : 'No'],
+    ['Feedback', project.feedback],
+  ];
+
+  return (
+    <section className="details-section project-info-section">
+      <div className="details-section-heading">
+        <div>
+          <span className="project-card-kicker">Details</span>
+          <h3>Project Information</h3>
+        </div>
+      </div>
+      {details.map(([label, value]) => (
+        <DetailRow key={label} label={label} value={value} />
+      ))}
+    </section>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div className="details-row">
+      <span className="details-label">{label}</span>
+      <span>{value}</span>
+    </div>
   );
 }

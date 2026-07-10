@@ -1,57 +1,35 @@
-import { useState } from "react";
+import { useState } from 'react';
 import supabase from '../../lib/supabaseClient.js';
 
-let photoId = 0;
-
 export default function FileUploader({ projectId }) {
-    const [uploadedFiles, setUploadedFiles] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState(null);
 
-    function handleFileChange(event) {
+  function handleFileSelection(event) {
+    setSelectedFiles(Array.from(event.target.files ?? []));
+  }
 
-        const files = [];
-
-        // The browser gives file inputs a FileList. This uploader currently
-        // previews the first selected file only.
-        if (event.target.files) {
-            for (let file of event.target.files) {
-                files.push(file);
-            }
-            setUploadedFiles(files);
-        }
-        console.log(files);
+  async function uploadPhotos() {
+    if (!selectedFiles) {
+      return;
     }
 
-    async function handlePhotoUpload(event) {
+    let photoNumber = 1;
+    for (const file of selectedFiles) {
+      const filePath = `project${projectId}/${file.name}${photoNumber++}`;
+      const { error } = await supabase.storage
+        .from('Session Photos')
+        .upload(filePath, file);
 
-        let photoIdForThisSession = 1;
-
-        if (uploadedFiles) {
-
-            for (let file of uploadedFiles) {
-                try {
-                    const { data, error } = await supabase.storage
-                        .from('Session Photos')
-                        .upload(`project${projectId}/${file.name}${photoIdForThisSession++}`, file);
-
-                    // Test getPublicUrl
-                    /*
-                    const { data } = supabase
-                        .storage
-                        .from('public-bucket')
-                        .getPublicUrl('folder/avatar1.png')
-                    */
-
-                } catch (error) {
-                    console.log(error);
-                }
-            }
-        }
+      if (error) {
+        console.log(error);
+      }
     }
+  }
 
-    return (
-        <div>
-            <input type="file" onChange={handleFileChange} multiple />
-            {uploadedFiles && <button type="button" onClick={handlePhotoUpload}>Upload</button>}
-        </div>
-    );
+  return (
+    <div>
+      <input type="file" onChange={handleFileSelection} multiple />
+      {selectedFiles && <button type="button" onClick={uploadPhotos}>Upload</button>}
+    </div>
+  );
 }

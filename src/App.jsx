@@ -7,7 +7,6 @@ import { useNavigate } from 'react-router';
 import { useEffect } from 'react';
 
 function App() {
-
   const navigate = useNavigate();
   const { session } = useAuth();
 
@@ -15,10 +14,8 @@ function App() {
     if (!session) {
       navigate('/login');
     }
-  });
+  }, [navigate, session]);
 
-  // This is the main logged-in app shell. Keeping the shell small makes it easy
-  // to see the page structure at a glance: navigation, main content, footer.
   return (
     <div className='app-layout-grid'>
       <header className='app-layout-header-element'><NavigationBar /></header>
