@@ -392,6 +392,43 @@ button {
   background: #8f3325;
 }
 
+.client-details {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(163, 61, 43, 0.26);
+  border-radius: 8px;
+  background: #f8e8df;
+  padding: 16px;
+}
+
+.client-details-header {
+  display: grid;
+  gap: 4px;
+}
+
+.client-details-header strong {
+  color: #211f1c;
+  font-size: 1.05rem;
+}
+
+.client-contact-list {
+  display: grid;
+  grid-template-columns: minmax(86px, 0.35fr) 1fr;
+  gap: 8px 14px;
+  color: #3b3731;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.client-contact-label {
+  color: #7d2d20;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .landing-page {
   display: grid;
   min-height: 100vh;
@@ -596,6 +633,15 @@ button {
   .details-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+
+  .client-contact-list {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .client-contact-label:not(:first-child) {
+    margin-top: 8px;
   }
 
   .details-section-heading {

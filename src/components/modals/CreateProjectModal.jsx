@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import supabase from '../../lib/supabaseClient.js';
 import FileUploader from "../../features/uploader/FileUploader.jsx";
+import { data } from "react-router";
 
 export function CreateProjectModal({ onClose }) {
   const [firstName, setFirstName] = useState("");
@@ -16,6 +17,8 @@ export function CreateProjectModal({ onClose }) {
   const [feedback, setFeedback] = useState(false);
 
   const [userAlert, setUserAlert] = useState(false);
+  const [client, setClient] = useState(undefined);
+
 
   async function insertNewProject() {
     const { data: matchingClients, error: clientLookupError } = await supabase
@@ -60,6 +63,24 @@ export function CreateProjectModal({ onClose }) {
 
   }
 
+  // Fetch Users while typing
+  useEffect(() => {
+    const fetchClient = async () => {
+      const { data, error } = await supabase
+        .from('Client')
+        .select('*')
+        .ilike('first_name', `%${firstName}%`)
+        .ilike('last_name', `%${lastName}%`);
+
+      if (data) {
+        console.log(data);
+        setClient(data[0]);
+      }
+    }
+
+    fetchClient();
+  }, [firstName, lastName]);
+
   return (
     <div id="create-project-modal" className="modal">
       {userAlert ? <ClientNotFoundToast firstName={firstName} lastName={lastName} onClose={() => setUserAlert(false)} /> : null}
@@ -67,7 +88,7 @@ export function CreateProjectModal({ onClose }) {
         <button className="close" type="button" onClick={onClose}>&times;</button>
         <div className="modal-heading">
           <p className="eyebrow">Project</p>
-          <h2>Create project</h2>
+          <h2>New Project Form</h2>
         </div>
         <form className="form-stack">
 
@@ -80,6 +101,21 @@ export function CreateProjectModal({ onClose }) {
             <label htmlFor="project-client-last-name">Last Name: </label>
             <input type="text" name="last-name" id="project-client-last-name" placeholder="Zalman" onChange={(e) => setLastName(e.target.value)} required />
           </div>
+
+          {client && (
+            <section className="client-details" aria-label="Matched client details">
+              <div className="client-details-header">
+                <span className="project-card-kicker">Client match</span>
+                <strong>{client.first_name} {client.last_name}</strong>
+              </div>
+              <div className="client-contact-list">
+                <span className="client-contact-label">Phone</span>
+                <span> <a href={`https://wa.me/${client.phone}`} target="_blank">{client.phone || 'No phone number'}</a></span>
+                <span className="client-contact-label">Instagram</span>
+                <span><a href={client.instagram} target="_blank">{client.instagram || 'No Instagram account'}</a></span>
+              </div>
+            </section>
+          )}
 
           <div className="form-field">
             <label htmlFor="project-title">Project Title: </label>
@@ -108,7 +144,7 @@ export function CreateProjectModal({ onClose }) {
 
           <div className="form-field">
             <label htmlFor="date-start">Date Start: </label>
-            <input type="date" name="date-start" id="date-start" onChange={(e) => setStartDate(e.target.value)} />
+            <input type="date" name="date-start" id="date-start" onChange={(e) => setStartDate(e.target.value)} required />
           </div>
 
           <div className="form-field">
@@ -118,22 +154,17 @@ export function CreateProjectModal({ onClose }) {
 
           <div className="form-field">
             <label htmlFor="full-price">Full Price: </label>
-            <input type="text" name="full-price" id="full-price" placeholder="350" onChange={(e) => setTotalPrice(e.target.value)} />
+            <input type="text" name="full-price" id="full-price" placeholder="350" onChange={(e) => setTotalPrice(e.target.value)} required />
           </div>
 
           <div className="form-field">
             <label htmlFor="deposit-paid">Deposit Paid: </label>
-            <input type="checkbox" name="deposit-paid" id="deposit-paid" onChange={(event) => setDepositPaid(event.target.checked)} />
+            <input type="checkbox" name="deposit-paid" id="deposit-paid" onChange={(event) => setDepositPaid(event.target.checked)} required />
           </div>
 
           <div className="form-field">
             <label htmlFor="feedback">Feedback: </label>
             <input type="text" name="feedback" id="feedback" onChange={(e) => setFeedback(e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label htmlFor="file-uploader">Photos: </label>
-            <FileUploader />
           </div>
 
           <div className="form-field">
