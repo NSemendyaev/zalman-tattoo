@@ -18,7 +18,7 @@ export function CreateProjectModal({ onClose }) {
 
   const [userAlert, setUserAlert] = useState(false);
   const [client, setClient] = useState(undefined);
-
+  const [selectedClient, setSelectedClient] = useState(false);
 
   async function insertNewProject() {
     const { data: matchingClients, error: clientLookupError } = await supabase
@@ -103,7 +103,10 @@ export function CreateProjectModal({ onClose }) {
           </div>
 
           {client && (
-            <section className="client-details" aria-label="Matched client details">
+            <section className={selectedClient ? 'client-details' : 'client-details-selected'} aria-label="Matched client details" onClick={() => {
+              if (selectedClient) setSelectedClient(false);
+              else setSelectedClient(true);
+            }}>
               <div className="client-details-header">
                 <span className="project-card-kicker">Client match</span>
                 <strong>{client.first_name} {client.last_name}</strong>

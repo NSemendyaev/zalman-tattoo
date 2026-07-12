@@ -12,10 +12,13 @@ export default function ProjectsGrid() {
         .select(`
           date_end,
           client_id,
+          Status (
+            status
+          ),
           Client (
             first_name,
             last_name
-          )
+          ) 
         `);
 
       if (error) {
@@ -49,7 +52,7 @@ export default function ProjectsGrid() {
               clientId={project.client_id}
               clientName={`${project.Client.first_name} ${project.Client.last_name}`}
               nextSessionDate={project.date_end}
-              status="PLACEHOLDER"
+              status={project.Status.status}
             />
           ))}
       </div>
@@ -73,6 +76,11 @@ function DashboardHeader({ recordCount, isLoading }) {
 
 function ProjectCard({ clientId, clientName, nextSessionDate, status }) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const statusClassName = {
+    'In Progress': 'status-pill--in-progress',
+    'In Review': 'status-pill--in-review',
+    Completed: 'status-pill--completed',
+  }[status] ?? 'status-pill--default';
 
   return (
     <>
@@ -80,7 +88,7 @@ function ProjectCard({ clientId, clientName, nextSessionDate, status }) {
         <span className="project-preview">
           <span className="project-card-kicker">Client</span>
           <strong>{clientName}</strong>
-          <span className="status-pill">{status}</span>
+          <span className={`status-pill ${statusClassName}`}>{status}</span>
           <span className="project-card-meta">Next Session</span>
           <span>{nextSessionDate}</span>
         </span>
