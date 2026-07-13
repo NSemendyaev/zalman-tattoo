@@ -21,7 +21,7 @@ export function AddClientModal({ onClose }) {
         .select("*")
         .eq('phone', phone);
 
-      if (data) {
+      if (data.length > 0) {
         console.log(`Are you trying to add ${data[0].first_name} ${data[0].last_name}?`);
         setDoesClientExist(true);
         return;
