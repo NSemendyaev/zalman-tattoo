@@ -91,46 +91,57 @@ export function CreateProjectModal({ onClose }) {
         <button className="close" type="button" onClick={onClose}>&times;</button>
         <div className="modal-heading">
           <p className="eyebrow">Project</p>
-          <h2>New Project Form</h2>
+          <h2>Create project</h2>
         </div>
         <form className="form-stack project-form">
-          <div className="project-form-grid client-search-grid">
-            <div className="form-field">
-              <label htmlFor="project-client-first-name">Client first name</label>
-              <input type="text" name="first-name" id="project-client-first-name" placeholder="Alex" onChange={(e) => setFirstName(e.target.value)} required />
+          <section className="form-section">
+            <div className="form-section-heading">
+              <p className="eyebrow">Client</p>
+              <h3>Find and select a client</h3>
+            </div>
+            <div className="project-form-grid client-search-grid">
+              <div className="form-field">
+                <label htmlFor="project-client-first-name">Client first name</label>
+                <input type="text" name="first-name" id="project-client-first-name" placeholder="Alex" onChange={(e) => setFirstName(e.target.value)} required />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="project-client-last-name">Client last name</label>
+                <input type="text" name="last-name" id="project-client-last-name" placeholder="Zalman" onChange={(e) => setLastName(e.target.value)} required />
+              </div>
             </div>
 
-            <div className="form-field">
-              <label htmlFor="project-client-last-name">Client last name</label>
-              <input type="text" name="last-name" id="project-client-last-name" placeholder="Zalman" onChange={(e) => setLastName(e.target.value)} required />
+            <div className="client-match-list">
+              {client && client.map((cl, index) => {
+                return (
+                  <section
+                    key={cl.id ?? index}
+                    className={`client-details ${selectedClient?.id === cl.id ? 'client-details--selected' : ''}`}
+                    aria-label="Matched client details"
+                    onClick={() => setSelectedClient(selectedClient?.id === cl.id ? undefined : cl)}
+                  >
+                    <div className="client-details-header">
+                      <span className="project-card-kicker">Client match</span>
+                      <strong>{cl.first_name} {cl.last_name}</strong>
+                    </div>
+                    <div className="client-contact-list">
+                      <span className="client-contact-label">Phone</span>
+                      <span> <a href={`https://wa.me/${cl.phone}`} target="_blank">{cl.phone || 'No phone number'}</a></span>
+                      <span className="client-contact-label">Instagram</span>
+                      <span><a href={cl.instagram} target="_blank">{cl.instagram || 'No Instagram account'}</a></span>
+                    </div>
+                  </section>
+                )
+              })}
             </div>
-          </div>
+          </section>
 
-          <div className="client-match-list">
-            {client && client.map((cl, index) => {
-              return (
-                <section
-                  key={cl.id ?? index}
-                  className={`client-details ${selectedClient?.id === cl.id ? 'client-details--selected' : ''}`}
-                  aria-label="Matched client details"
-                  onClick={() => setSelectedClient(selectedClient?.id === cl.id ? undefined : cl)}
-                >
-                  <div className="client-details-header">
-                    <span className="project-card-kicker">Client match</span>
-                    <strong>{cl.first_name} {cl.last_name}</strong>
-                  </div>
-                  <div className="client-contact-list">
-                    <span className="client-contact-label">Phone</span>
-                    <span> <a href={`https://wa.me/${cl.phone}`} target="_blank">{cl.phone || 'No phone number'}</a></span>
-                    <span className="client-contact-label">Instagram</span>
-                    <span><a href={cl.instagram} target="_blank">{cl.instagram || 'No Instagram account'}</a></span>
-                  </div>
-                </section>
-              )
-            })}
-          </div>
-
-          <div className="project-form-grid">
+          <section className="form-section">
+            <div className="form-section-heading">
+              <p className="eyebrow">Artwork</p>
+              <h3>Project and design</h3>
+            </div>
+            <div className="project-form-grid">
             <div className="form-field">
               <label htmlFor="project-title">Project title</label>
               <input type="text" name="project-title" id="project-title" placeholder="Duck in Targaryen's Armor" onChange={(e) => setProjectTitle(e.target.value)} required />
@@ -178,7 +189,15 @@ export function CreateProjectModal({ onClose }) {
               <label htmlFor="project-brief">Tattoo brief and design notes</label>
               <textarea name="brief" id="project-brief" rows="4" placeholder="Agreed idea, motifs, direction, and any changes discussed with the client." onChange={(e) => setDesignNotes(e.target.value)} />
             </div>
+            </div>
+          </section>
 
+          <section className="form-section">
+            <div className="form-section-heading">
+              <p className="eyebrow">Technical setup</p>
+              <h3>Equipment</h3>
+            </div>
+            <div className="project-form-grid">
             <div className="form-field">
               <label htmlFor="cartridge-brand">Cartridge brand</label>
               <input type="text" name="cartridge-brand" id="cartridge-brand" placeholder="Kwadron" onChange={(e) => setCartridgeBrand(e.target.value)} />
@@ -188,7 +207,15 @@ export function CreateProjectModal({ onClose }) {
               <label htmlFor="needle-config">Needle configuration</label>
               <input type="text" name="needle-config" id="needle-config" placeholder="3RL, 7RS" onChange={(e) => setNeedleConfig(e.target.value)} />
             </div>
+            </div>
+          </section>
 
+          <section className="form-section">
+            <div className="form-section-heading">
+              <p className="eyebrow">Schedule and payment</p>
+              <h3>Timing and pricing</h3>
+            </div>
+            <div className="project-form-grid">
             <div className="form-field">
               <label htmlFor="date-start">Project start date</label>
               <input type="date" name="date-start" id="date-start" onChange={(e) => setStartDate(e.target.value)} required />
@@ -218,15 +245,23 @@ export function CreateProjectModal({ onClose }) {
               <label htmlFor="client-feedback">Client feedback</label>
               <input type="text" name="client-feedback" id="client-feedback" onChange={(e) => setClientFeedback(e.target.value)} />
             </div>
+            </div>
+          </section>
 
+          <section className="form-section">
+            <div className="form-section-heading">
+              <p className="eyebrow">Notes</p>
+              <h3>Private artist notes</h3>
+            </div>
             <div className="form-field form-field--full">
-              <label htmlFor="internal-notes">Private artist notes</label>
+              <label htmlFor="internal-notes">Notes</label>
               <textarea name="internal-notes" id="internal-notes" rows="4" placeholder="Sizing decisions, healing notes, supply reminders, or anything not shared with the client." onChange={(e) => setArtistNotes(e.target.value)} />
             </div>
-          </div>
+          </section>
 
-          <div className="form-field form-field--full">
-            <button type="button" onClick={insertNewProject}>Add</button>
+          <div className="form-actions">
+            <button className="button button-ghost" type="button" onClick={onClose}>Cancel</button>
+            <button className="button button-primary" type="button" onClick={insertNewProject}>Create project</button>
           </div>
 
         </form>

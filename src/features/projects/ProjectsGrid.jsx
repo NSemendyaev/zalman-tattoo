@@ -67,12 +67,16 @@ export default function ProjectsGrid() {
 function DashboardHeader({ recordCount, isLoading }) {
   return (
     <div className="dashboard-heading">
-      <p className="dashboard-meta">
-        {isLoading ? 'Loading projects...' : `${recordCount} active records`}
-      </p>
+      <div className="dashboard-title-group">
+        <p className="eyebrow">Studio workspace</p>
+        <h1>Projects</h1>
+        <p className="dashboard-meta">
+          {isLoading ? 'Loading projects...' : `${recordCount} active records`}
+        </p>
+      </div>
       <div className="grid-actions">
-        <button className="button button-secondary">Sort by</button>
-        <button className="button button-secondary">Filter</button>
+        <button className="button button-ghost">Sort by</button>
+        <button className="button button-ghost">Filter</button>
       </div>
     </div>
   );
@@ -90,12 +94,16 @@ function ProjectCard({ clientName, nextSessionDate, projectId, projectTitle, sta
     <>
       <button className="project-card" onClick={() => setIsDetailsOpen(true)}>
         <span className="project-preview">
-          <span className="project-card-kicker">Client</span>
-          <strong>{clientName}</strong>
-          <span className="project-card-meta">{projectTitle}</span>
-          <span className={`status-pill ${statusClassName}`}>{status}</span>
-          <span className="project-card-meta">Next Session</span>
-          <span>{nextSessionDate}</span>
+          <span className="project-card-topline">
+            <span className="project-card-kicker">Project</span>
+            <span className={`status-pill ${statusClassName}`}>{status}</span>
+          </span>
+          <strong>{projectTitle}</strong>
+          <span className="project-client">{clientName}</span>
+          <span className="project-card-footer">
+            <span className="project-card-meta">Target completion</span>
+            <span className="project-card-date">{nextSessionDate || 'Not scheduled'}</span>
+          </span>
         </span>
       </button>
       {isDetailsOpen && (

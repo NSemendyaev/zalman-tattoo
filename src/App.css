@@ -125,6 +125,12 @@ button {
   gap: 8px;
 }
 
+.nav-actions-divider {
+  width: 1px;
+  height: 26px;
+  background: rgba(33, 31, 28, 0.16);
+}
+
 .button,
 .project-card,
 .close,
@@ -201,6 +207,11 @@ button {
   gap: 20px;
 }
 
+.dashboard-title-group {
+  display: grid;
+  gap: 5px;
+}
+
 .grid-actions {
   display: flex;
   justify-content: flex-end;
@@ -208,10 +219,14 @@ button {
   gap: 8px;
 }
 
+.grid-actions .button {
+  min-height: 36px;
+}
+
 .dashboard-heading h1 {
   color: #211f1c;
-  font-size: clamp(2rem, 5vw, 4.2rem);
-  line-height: 0.95;
+  font-size: 2.25rem;
+  line-height: 1;
   letter-spacing: 0;
 }
 
@@ -226,12 +241,12 @@ button {
 
 .cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 16px;
 }
 
 .project-card {
-  min-height: 190px;
+  min-height: 210px;
   overflow: hidden;
   border: 1px solid rgba(33, 31, 28, 0.12);
   border-radius: 8px;
@@ -248,14 +263,41 @@ button {
 
 .project-preview {
   display: grid;
-  gap: 10px;
+  min-height: inherit;
+  gap: 9px;
   padding: 20px;
+}
+
+.project-card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .project-preview strong {
   color: #211f1c;
   font-size: 1.38rem;
   line-height: 1.08;
+}
+
+.project-client {
+  color: #71675b;
+  font-size: 0.94rem;
+}
+
+.project-card-footer {
+  display: grid;
+  gap: 3px;
+  margin-top: auto;
+  border-top: 1px solid rgba(33, 31, 28, 0.1);
+  padding-top: 12px;
+}
+
+.project-card-date {
+  color: #3b3731;
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .status-pill {
@@ -320,6 +362,10 @@ button {
   width: min(1040px, 100%);
 }
 
+.client-modal-content {
+  width: min(720px, 100%);
+}
+
 .project-details-modal-content {
   width: min(1180px, 100%);
 }
@@ -363,7 +409,39 @@ button {
 }
 
 .project-form {
+  gap: 22px;
+}
+
+.client-form {
+  gap: 22px;
+}
+
+.form-section {
+  display: grid;
+  gap: 16px;
+}
+
+.form-section + .form-section {
+  border-top: 1px solid rgba(33, 31, 28, 0.12);
+  padding-top: 22px;
+}
+
+.form-section-heading {
+  display: grid;
   gap: 4px;
+}
+
+.form-section-heading h3 {
+  margin: 0;
+  color: #211f1c;
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 18px;
 }
 
 .project-form-grid {
@@ -422,7 +500,29 @@ button {
 }
 
 .form-field--checkbox {
-  align-content: start;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border: 1px solid rgba(33, 31, 28, 0.12);
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 11px 12px;
+}
+
+.form-field--checkbox input[type="checkbox"] {
+  margin: 0;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid rgba(33, 31, 28, 0.12);
+  padding-top: 18px;
+}
+
+.form-actions .button {
+  min-width: 130px;
 }
 
 .form-field button,
@@ -701,12 +801,12 @@ button {
     flex: 1 1 140px;
   }
 
-  .app-layout-main-element {
-    padding-top: 28px;
+  .nav-actions-divider {
+    display: none;
   }
 
-  .dashboard-heading h1 {
-    font-size: 2.7rem;
+  .app-layout-main-element {
+    padding-top: 28px;
   }
 
   .modal {
@@ -719,6 +819,10 @@ button {
   }
 
   .project-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
     grid-template-columns: 1fr;
   }
 

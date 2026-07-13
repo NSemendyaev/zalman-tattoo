@@ -34,13 +34,14 @@ export default function NavigationBar() {
           <span className="brand-mark">ZT</span>
           <div className="brand-title-row">
             <p className="brand-title">Zalman Tattoo</p>
-            <button className="button button-secondary" onClick={() => setIsProjectModalOpen(true)}>Create Project</button>
-            <button className="button button-secondary" onClick={() => setIsClientModalOpen(true)}>Add Client</button>
           </div>
         </div>
 
         <div className="nav-actions">
-          <button className="button button-secondary" onClick={handleSignOut}>Sign Out</button>
+          <button className="button button-primary" onClick={() => setIsProjectModalOpen(true)}>Create Project</button>
+          <button className="button button-ghost" onClick={() => setIsClientModalOpen(true)}>Add Client</button>
+          <span className="nav-actions-divider" aria-hidden="true" />
+          <button className="button button-ghost" onClick={handleSignOut}>Sign Out</button>
         </div>
       </nav>
 
