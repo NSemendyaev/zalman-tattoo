@@ -529,7 +529,7 @@ function DetailRow({ label, value }) {
   return (
     <div className="details-row">
       <span className="details-label">{label}</span>
-      <span>{value}</span>
+      <span className="details-content">{value}</span>
     </div>
   );
 }

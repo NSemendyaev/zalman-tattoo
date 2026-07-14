@@ -208,6 +208,7 @@ button {
 
 .upcoming-sesson {
   grid-column: 1;
+  max-height: 445.2px;
   border: 1px solid rgba(33, 31, 28, 0.12);
   border-radius: 8px;
   background: #fffaf2;
@@ -486,6 +487,10 @@ button {
   color: #4d453d;
   font-size: 0.85rem;
   font-weight: 800;
+}
+
+.details-content {
+  text-align: justify;
 }
 
 .form-field input,
