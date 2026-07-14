@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { LogOut, Plus, UserPlus } from 'lucide-react';
 import { AddClientModal } from '../modals/AddClientModal.jsx';
 import { CreateProjectModal } from '../modals/CreateProjectModal.jsx';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../context/useAuth.js';
 
-export default function NavigationBar() {
+export default function NavigationBar({ onProjectCreated }) {
   // These booleans decide whether each modal is visible.
   // In React, changing state with the setter function causes this component to
   // render again, so the JSX below can show or hide the matching modal.
@@ -38,10 +39,19 @@ export default function NavigationBar() {
         </div>
 
         <div className="nav-actions">
-          <button className="button button-primary" onClick={() => setIsProjectModalOpen(true)}>Create Project</button>
-          <button className="button button-ghost" onClick={() => setIsClientModalOpen(true)}>Add Client</button>
+          <button className="button button-primary" onClick={() => setIsProjectModalOpen(true)}>
+            <Plus size={16} aria-hidden="true" />
+            Create Project
+          </button>
+          <button className="button button-ghost" onClick={() => setIsClientModalOpen(true)}>
+            <UserPlus size={16} aria-hidden="true" />
+            Add Client
+          </button>
           <span className="nav-actions-divider" aria-hidden="true" />
-          <button className="button button-ghost" onClick={handleSignOut}>Sign Out</button>
+          <button className="button button-ghost" onClick={handleSignOut}>
+            <LogOut size={16} aria-hidden="true" />
+            Sign Out
+          </button>
         </div>
       </nav>
 
@@ -50,7 +60,13 @@ export default function NavigationBar() {
       )}
 
       {isProjectModalOpen && (
-        <CreateProjectModal onClose={() => setIsProjectModalOpen(false)} />
+        <CreateProjectModal
+          onClose={() => setIsProjectModalOpen(false)}
+          onCreated={() => {
+            onProjectCreated();
+            setIsProjectModalOpen(false);
+          }}
+        />
       )}
     </>
   );

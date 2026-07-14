@@ -1,6 +1,6 @@
-import { use, useState } from 'react';
+import { useState } from 'react';
+import { UserPlus, X } from 'lucide-react';
 import supabase from '../../lib/supabaseClient.js';
-import UserProfile from '../../features/profiles/UserProfile.jsx';
 
 export function AddClientModal({ onClose }) {
   const [firstName, setFirstName] = useState('');
@@ -12,24 +12,33 @@ export function AddClientModal({ onClose }) {
   const [dob, setDob] = useState('');
   const [isLondonBased, setIsLondonBased] = useState(false);
   const [doesClientExist, setDoesClientExist] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  async function insertNewClient() {
+  async function insertNewClient(event) {
+    event.preventDefault();
+    setFormError('');
+    setDoesClientExist(false);
+    setIsSaving(true);
 
-    {
-      const { data, error } = await supabase
-        .from('Client')
-        .select("*")
-        .eq('phone', phone);
+    const { data: existingClients, error: lookupError } = await supabase
+      .from('Client')
+      .select('id, first_name, last_name')
+      .eq('phone', phone);
 
-      if (data.length > 0) {
-        console.log(`Are you trying to add ${data[0].first_name} ${data[0].last_name}?`);
-        setDoesClientExist(true);
-        return;
-      }
-
+    if (lookupError) {
+      setFormError('Could not check existing clients. Please try again.');
+      setIsSaving(false);
+      return;
     }
 
-    const { data, error } = await supabase
+    if (existingClients.length > 0) {
+      setDoesClientExist(true);
+      setIsSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
       .from('Client')
       .insert([
         {
@@ -46,23 +55,26 @@ export function AddClientModal({ onClose }) {
       .select();
 
     if (error) {
-      console.log(error);
+      setFormError('Could not create the client. Please try again.');
+      setIsSaving(false);
       return;
     }
 
-    console.log(data);
+    onClose();
   }
 
   return (
     <div id="add-client-modal" className="modal">
       <div className="modal-content client-modal-content">
-        {doesClientExist && <DoesClientAlreadyExist firstName={firstName} lastName={lastName} onClick={() => setDoesClientExist(false)} />}
-        <button className="close" type="button" onClick={onClose}>&times;</button>
+        {doesClientExist && <DoesClientAlreadyExist firstName={firstName} lastName={lastName} onClose={() => setDoesClientExist(false)} />}
+        <button className="close" type="button" onClick={onClose} aria-label="Close" title="Close">
+          <X size={18} aria-hidden="true" />
+        </button>
         <div className="modal-heading">
           <p className="eyebrow">Client</p>
           <h2>Add client</h2>
         </div>
-        <form className="form-stack client-form">
+        <form className="form-stack client-form" onSubmit={insertNewClient}>
           <section className="form-section">
             <div className="form-section-heading">
               <p className="eyebrow">Contact</p>
@@ -115,8 +127,12 @@ export function AddClientModal({ onClose }) {
 
           <div className="form-actions">
             <button className="button button-ghost" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button-primary" type="button" onClick={insertNewClient}>Create client</button>
+            <button className="button button-primary" type="submit" disabled={isSaving}>
+              <UserPlus size={16} aria-hidden="true" />
+              {isSaving ? 'Creating...' : 'Create client'}
+            </button>
           </div>
+          {formError && <p className="form-error" role="alert">{formError}</p>}
         </form>
       </div>
     </div>
@@ -124,13 +140,12 @@ export function AddClientModal({ onClose }) {
 }
 
 function DoesClientAlreadyExist({ onClose, firstName, lastName }) {
-  const [openUserProfile, setOpenUserProfile] = useState(false);
-
   return (
     <div className="toast">
-      {openUserProfile && console.log('Open User Profile')}
-      <button className="toast-close" type="button" onClick={onClose}>&times;</button>
-      <p className="toast-message" onClick={() => setOpenUserProfile(true)}>Is it {firstName} {lastName}?</p>
+      <button className="toast-close" type="button" onClick={onClose} aria-label="Dismiss message" title="Dismiss message">
+        <X size={16} aria-hidden="true" />
+      </button>
+      <p className="toast-message">A client named {firstName} {lastName} already has this phone number.</p>
     </div >
   );
 }

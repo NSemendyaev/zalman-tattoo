@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import AddNewSession from '../../components/modals/AddNewSession';
+import { ArrowUpDown, CalendarPlus, Check, Pencil, SlidersHorizontal, X } from 'lucide-react';
 import ScheduleSession from '../../components/modals/ScheduleSession';
 import supabase from '../../lib/supabaseClient';
+import UpcomingSession from './UpcomingSession';
 
 export default function ProjectsGrid() {
   const [projectSummaries, setProjectSummaries] = useState(null);
@@ -44,6 +45,8 @@ export default function ProjectsGrid() {
         isLoading={isLoading}
       />
 
+      <UpcomingSession />
+
       <div className="cards-grid">
         {isLoading
           ? Array.from({ length: 3 }, (_, index) => (
@@ -53,7 +56,6 @@ export default function ProjectsGrid() {
             <ProjectCard
               key={project.id}
               clientName={`${project.Client.first_name} ${project.Client.last_name}`}
-              nextSessionDate={project.target_end_date}
               projectId={project.id}
               projectTitle={project.project_title}
               status={project.Status.status}
@@ -75,20 +77,51 @@ function DashboardHeader({ recordCount, isLoading }) {
         </p>
       </div>
       <div className="grid-actions">
-        <button className="button button-ghost">Sort by</button>
-        <button className="button button-ghost">Filter</button>
+        <button className="button button-ghost">
+          <ArrowUpDown size={16} aria-hidden="true" />
+          Sort by
+        </button>
+        <button className="button button-ghost">
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          Filter
+        </button>
       </div>
     </div>
   );
 }
 
-function ProjectCard({ clientName, nextSessionDate, projectId, projectTitle, status }) {
+function ProjectCard({ clientName, projectId, projectTitle, status }) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const statusClassName = {
     'In Progress': 'status-pill--in-progress',
     'In Review': 'status-pill--in-review',
-    Completed: 'status-pill--completed',
+    'Completed': 'status-pill--completed',
   }[status] ?? 'status-pill--default';
+
+  const [upcomingSession, setUpcomingSession] = useState('Not Scheduled');
+
+  useEffect(() => {
+    const fetchUpcomingSession = async () => {
+      try {
+        const { data, error } = await supabase
+          .rpc('fetch_upcoming_session', { p_project_id: projectId, });
+
+        if (data && data.length > 0) {
+          console.log(data);
+          setUpcomingSession(data);
+        }
+        else {
+          console.log(error);
+        }
+
+      } catch (error) {
+        console.log(error);
+      }
+
+    }
+
+    fetchUpcomingSession();
+  }, [projectId]);
 
   return (
     <>
@@ -101,8 +134,8 @@ function ProjectCard({ clientName, nextSessionDate, projectId, projectTitle, sta
           <strong>{projectTitle}</strong>
           <span className="project-client">{clientName}</span>
           <span className="project-card-footer">
-            <span className="project-card-meta">Target completion</span>
-            <span className="project-card-date">{nextSessionDate || 'Not scheduled'}</span>
+            <span className="project-card-meta">Upcoming Session</span>
+            <span className="project-card-date">{upcomingSession}</span>
           </span>
         </span>
       </button>
@@ -116,11 +149,12 @@ function ProjectCard({ clientName, nextSessionDate, projectId, projectTitle, sta
   );
 }
 
-function ProjectDetails({ onClose, projectId }) {
+export function ProjectDetails({ onClose, projectId }) {
   const [projects, setProjects] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [isNewSessionFormOpen, setIsNewSessionFormOpen] = useState(false);
   const [projectIdForNewSession, setProjectIdForNewSession] = useState(null);
+  const [sessionsVersion, setSessionsVersion] = useState(0);
 
   useEffect(() => {
     async function fetchProjectDetails() {
@@ -173,23 +207,21 @@ function ProjectDetails({ onClose, projectId }) {
     return (
       <ScheduleSession
         onClose={() => setIsNewSessionFormOpen(false)}
+        onScheduled={() => {
+          setSessionsVersion((version) => version + 1);
+          setIsNewSessionFormOpen(false);
+        }}
         projectId={projectIdForNewSession}
       />
     );
-    /*
-    return (
-      <AddNewSession
-        onClose={() => setIsNewSessionFormOpen(false)}
-        projectId={projectIdForNewSession}
-      />
-    );
-    */
   }
 
   return (
     <div id="project-details-modal" className="modal">
       <div className="modal-content project-details-modal-content">
-        <button className="close" type="button" onClick={onClose}>&times;</button>
+        <button className="close" type="button" onClick={onClose} aria-label="Close" title="Close">
+          <X size={18} aria-hidden="true" />
+        </button>
         {projects?.map((project) => (
           <div className="project-details" key={project.id}>
             <div className="project-details-header">
@@ -208,14 +240,26 @@ function ProjectDetails({ onClose, projectId }) {
                     className="button button-secondary"
                     onClick={() => openNewSessionForm(project.id)}
                   >
+                    <CalendarPlus size={16} aria-hidden="true" />
                     Schedule Session
                   </button>
                 </div>
                 <SessionGrid
+                  key={sessionsVersion}
                   onSelectSession={setSelectedSession}
                   projectId={project.id}
                 />
-                {selectedSession && <SessionDetails session={selectedSession} projectId={projectId} />}
+                {selectedSession && (
+                  <SessionDetails
+                    key={selectedSession.id}
+                    session={selectedSession}
+                    projectId={projectId}
+                    onUpdated={(updatedSession) => {
+                      setSelectedSession(updatedSession);
+                      setSessionsVersion((version) => version + 1);
+                    }}
+                  />
+                )}
               </section>
 
               <ProjectInfo project={project} />
@@ -276,9 +320,11 @@ function SessionCard({ onClick, session }) {
   );
 }
 
-function SessionDetails({ session, projectId }) {
-  const [editSessionDetails, setSessionDetails] = useState(undefined);
+function SessionDetails({ onUpdated, session, projectId }) {
+  const [editSessionDetails, setSessionDetails] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const [appointmentDate, setAppointmentDate] = useState(session.appointment_date);
   const [status, setStatus] = useState(session.status_id);
@@ -308,7 +354,7 @@ function SessionDetails({ session, projectId }) {
         .upload(filePath, file);
 
       if (error) {
-        console.log(error);
+        throw error;
       }
     }
   }
@@ -338,13 +384,26 @@ function SessionDetails({ session, projectId }) {
       .select()
 
     if (error) {
-      console.log(error);
+      throw error;
     }
+
+    return data[0];
   }
 
   async function handleUpdateSession() {
-    await uploadSessionPhotos();
-    updateSession();
+    setFormError('');
+    setIsSaving(true);
+    try {
+      await uploadSessionPhotos();
+      const updatedSession = await updateSession();
+      onUpdated(updatedSession);
+      setSessionDetails(false);
+    } catch (error) {
+      console.log(error);
+      setFormError('Could not update this session. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -355,19 +414,22 @@ function SessionDetails({ session, projectId }) {
           if (!editSessionDetails) {
             setSessionDetails(true);
           } else setSessionDetails(false);
-        }}>Edit</button>
+        }}>
+          <Pencil size={16} aria-hidden="true" />
+          Edit
+        </button>
       </div>
       <DetailRow label="Date" value={editSessionDetails ? <>
         <div className="form-field form-field--full">
           <label htmlFor="appointment_date">Appointment Date</label>
-          <input type="date" id="appointment_date" onChange={(e) => setAppointmentDate(e.target.value)} />
+          <input type="date" id="appointment_date" value={appointmentDate ?? ''} onChange={(e) => setAppointmentDate(e.target.value)} />
         </div>
       </> : session.appointment_date} />
 
       <DetailRow label="Status" value={editSessionDetails ? <>
         <div className="form-field">
           <label htmlFor="status">Project status</label>
-          <select name="status" id="status" placeholder="Active" onChange={(e) => setStatus(e.target.value)} required>
+          <select name="status" id="status" value={status ?? ''} onChange={(e) => setStatus(e.target.value)} required>
             <option value=""></option>
             <option value="1">In Progress</option>
             <option value="2">Completed</option>
@@ -378,20 +440,20 @@ function SessionDetails({ session, projectId }) {
       <DetailRow label="Duration" value={editSessionDetails ? <>
         <div className="form-field form-field--full">
           <label htmlFor="session-duration">Duration</label>
-          <input type="time" id="session-duration" onChange={(e) => setDuration(e.target.value)} />
+          <input type="time" id="session-duration" value={duration ?? ''} onChange={(e) => setDuration(e.target.value)} />
         </div>
       </> : session.duration} />
 
       <DetailRow label="Amount Paid" value={editSessionDetails ? <>
         <div className="form-field form-field--full">
-          <label htmlFor="deposit-amount">Deposit amount</label>
-          <input type="number" name="deposit-amount" id="deposit-amount" min="0" step="0.01" placeholder="50" onChange={(e) => setAmountPaid(e.target.value)} />
+          <label htmlFor="session-amount-paid">Amount paid</label>
+          <input type="number" name="amount-paid" id="session-amount-paid" min="0" step="0.01" value={amountPaid ?? ''} onChange={(e) => setAmountPaid(e.target.value)} />
         </div>
       </> : session.amount_paid} />
 
       <DetailRow label="Session Notes" value={editSessionDetails ? <>
         <div className="form-field form-field--full">
-          <textarea name="internal-notes" id="internal-notes" rows="4" onChange={(e) => setSessionNotes(e.target.value)}>{session.session_notes}</ textarea>
+          <textarea name="session-notes" id="session-notes" rows="4" value={sessionNotes ?? ''} onChange={(e) => setSessionNotes(e.target.value)} />
         </div>
       </> : session.session_notes} />
 
@@ -414,9 +476,13 @@ function SessionDetails({ session, projectId }) {
       {editSessionDetails && <DetailRow value={
         <div className=''>
           <span className="project-card-kicker"></span>
-          <button className="button button-secondary" onClick={handleUpdateSession}>Confirm</button>
+          <button className="button button-secondary" onClick={handleUpdateSession} disabled={isSaving}>
+            <Check size={16} aria-hidden="true" />
+            {isSaving ? 'Saving...' : 'Confirm'}
+          </button>
         </div>
       } />}
+      {formError && <p className="form-error" role="alert">{formError}</p>}
 
     </div>
   );

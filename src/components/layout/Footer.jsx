@@ -1,3 +1,5 @@
+import { ExternalLink } from 'lucide-react';
+
 export default function Footer() {
   // The footer reuses the same visual nav style as the header while keeping the
   // social/contact buttons in one small, predictable component.
@@ -5,7 +7,10 @@ export default function Footer() {
     <div className="app-footer">
       <div className="footer-actions">
         <form action="https://www.instagram.com/zalman.tattoo/">
-          <button className="button button-ghost">Instagram</button>
+          <button className="button button-ghost">
+            Instagram
+            <ExternalLink size={16} aria-hidden="true" />
+          </button>
         </form>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { Plus, X } from 'lucide-react';
 import supabase from '../../lib/supabaseClient.js';
 
-export function CreateProjectModal({ onClose }) {
+export function CreateProjectModal({ onClose, onCreated }) {
   const [firstName, setFirstName] = useState(""); //                client_id + +
   const [lastName, setLastName] = useState(""); //                  client_id + +
   const [projectTitle, setProjectTitle] = useState(""); //          project_title + +
@@ -24,14 +25,20 @@ export function CreateProjectModal({ onClose }) {
   const [userAlert, setUserAlert] = useState(false);
   const [client, setClient] = useState(undefined);
   const [selectedClient, setSelectedClient] = useState(undefined);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  async function insertNewProject() {
+  async function insertNewProject(event) {
+    event.preventDefault();
+    setFormError('');
     if (!selectedClient) {
-      setUserAlert(true);
+      setFormError('Select a client before creating this project.');
       return;
     }
 
-    const { data, error } = await supabase
+    setIsSaving(true);
+
+    const { error } = await supabase
       .from('Project')
       .insert([
         {
@@ -57,16 +64,21 @@ export function CreateProjectModal({ onClose }) {
       .select();
 
     if (error) {
-      console.log(error);
+      setFormError('Could not create the project. Please try again.');
+      setIsSaving(false);
       return;
     }
 
-    console.log(data);
+    onCreated();
   }
 
   // Fetch Users while typing
   useEffect(() => {
     const fetchClient = async () => {
+      if (!firstName && !lastName) {
+        setClient([]);
+        return;
+      }
       const { data, error } = await supabase
         .from('Client')
         .select('*')
@@ -88,12 +100,14 @@ export function CreateProjectModal({ onClose }) {
     <div id="create-project-modal" className="modal">
       {userAlert ? <ClientNotFoundToast firstName={firstName} lastName={lastName} onClose={() => setUserAlert(false)} /> : null}
       <div className="modal-content project-modal-content">
-        <button className="close" type="button" onClick={onClose}>&times;</button>
+        <button className="close" type="button" onClick={onClose} aria-label="Close" title="Close">
+          <X size={18} aria-hidden="true" />
+        </button>
         <div className="modal-heading">
           <p className="eyebrow">Project</p>
           <h2>Create project</h2>
         </div>
-        <form className="form-stack project-form">
+        <form className="form-stack project-form" onSubmit={insertNewProject}>
           <section className="form-section">
             <div className="form-section-heading">
               <p className="eyebrow">Client</p>
@@ -261,8 +275,12 @@ export function CreateProjectModal({ onClose }) {
 
           <div className="form-actions">
             <button className="button button-ghost" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button-primary" type="button" onClick={insertNewProject}>Create project</button>
+            <button className="button button-primary" type="submit" disabled={isSaving}>
+              <Plus size={16} aria-hidden="true" />
+              {isSaving ? 'Creating...' : 'Create project'}
+            </button>
           </div>
+          {formError && <p className="form-error" role="alert">{formError}</p>}
 
         </form>
 
@@ -274,7 +292,9 @@ export function CreateProjectModal({ onClose }) {
 function ClientNotFoundToast({ onClose, firstName, lastName }) {
   return (
     <div className="toast">
-      <button className="toast-close" type="button" onClick={onClose}>&times;</button>
+      <button className="toast-close" type="button" onClick={onClose} aria-label="Dismiss message" title="Dismiss message">
+        <X size={16} aria-hidden="true" />
+      </button>
       <p className="toast-message">{firstName} {lastName} doesn't exist!</p>
     </div >
   );

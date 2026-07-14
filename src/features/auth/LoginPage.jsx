@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LogIn, X } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../../context/useAuth.js';
 
@@ -18,15 +19,16 @@ export default function LoginPage() {
     try {
       const result = await signInUser(email, password);
 
-      if (result.success) {
+      if (result?.success) {
         navigate('/');
+      } else {
+        setHasLoginError(true);
       }
     } catch (error) {
       console.log(error);
+      setHasLoginError(true);
     } finally {
       setLoading(false);
-      setHasLoginError(true);
-      setTimeout(() => { setHasLoginError(false); }, 10000);
     }
   };
 
@@ -49,7 +51,10 @@ export default function LoginPage() {
             <label htmlFor="login-password">Password</label><br />
             <input type="password" id="login-password" onChange={event => setPassword(event.target.value)} /><br />
 
-            <button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
+            <button type="submit" disabled={loading}>
+              <LogIn size={16} aria-hidden="true" />
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
           </form>
         </div>
       </div>
@@ -60,7 +65,9 @@ export default function LoginPage() {
 function LoginErrorToast({ onClose }) {
   return (
     <div className="toast">
-      <button className="toast-close" type="button" onClick={onClose}>&times;</button>
+      <button className="toast-close" type="button" onClick={onClose} aria-label="Dismiss message" title="Dismiss message">
+        <X size={16} aria-hidden="true" />
+      </button>
       <p className="toast-message">Invalid password or email.</p>
     </div >
   );
