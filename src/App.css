@@ -209,7 +209,7 @@ button {
 
 .upcoming-sesson {
   grid-column: 1;
-  max-height: 445.2px;
+  max-height: 214px;
   border: 1px solid rgba(33, 31, 28, 0.12);
   border-radius: 8px;
   background: #fffaf2;
@@ -484,7 +484,7 @@ button {
   font-size: 0.82rem;
 }
 
-.session-summary-topline > strong {
+.session-summary-topline>strong {
   color: #211f1c;
   font-size: 0.92rem;
 }

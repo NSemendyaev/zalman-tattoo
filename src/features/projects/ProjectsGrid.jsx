@@ -82,6 +82,7 @@ export default function ProjectsGrid() {
         recordCount={projectSummaries?.length}
         isLoading={isLoading}
         sortBy={setSortBy}
+        sortByValue={sortBy}
       />
 
       <UpcomingSession />
@@ -105,7 +106,7 @@ export default function ProjectsGrid() {
   );
 }
 
-function DashboardHeader({ recordCount, isLoading, sortBy }) {
+function DashboardHeader({ recordCount, isLoading, sortBy, sortByValue }) {
   return (
     <div className="dashboard-heading">
       <div className="dashboard-title-group">
@@ -120,7 +121,7 @@ function DashboardHeader({ recordCount, isLoading, sortBy }) {
           <ArrowUpDown size={16} aria-hidden="true" />
           <span>Sort by</span>
           {/* The setter is passed from the parent; changing it recomputes the memoized display list. */}
-          <select name="sort-options" id="sort-options" value={sortBy} onChange={(e) => sortBy(e.target.value)}>
+          <select name="sort-options" id="sort-options" value={sortByValue} onChange={(e) => sortBy(e.target.value)}>
             <option value="">Default order</option>
             <option value="date-new-first">Project Date: New First</option>
             <option value="date-old-first">Project Date: Old First</option>
