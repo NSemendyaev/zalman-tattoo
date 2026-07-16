@@ -30,7 +30,8 @@ export default function UpcomingSession() {
         fetchUpcomingSession();
     }, []);
 
-    if (upcomingSession) {
+    // An empty array is truthy, so also confirm that the RPC returned a first row.
+    if (upcomingSession?.length > 0) {
         return (
             <>
                 <button className='upcoming-sesson' onClick={() => setIsDetailsOpen(true)}>

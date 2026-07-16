@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpDown, CalendarPlus, Check, Pencil, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useEffectEvent, useMemo, useState } from 'react';
+import { ArrowUpDown, CalendarPlus, Check, CircleCheck, FolderKanban, LoaderCircle, Pencil, SearchCheck, SlidersHorizontal, X } from 'lucide-react';
 import ScheduleSession from '../../components/modals/ScheduleSession';
 import supabase from '../../lib/supabaseClient';
 import UpcomingSession from './UpcomingSession';
@@ -83,6 +83,7 @@ export default function ProjectsGrid() {
         isLoading={isLoading}
         sortBy={setSortBy}
         sortByValue={sortBy}
+        projectSummaries={projectSummaries}
       />
 
       <UpcomingSession />
@@ -106,15 +107,52 @@ export default function ProjectsGrid() {
   );
 }
 
-function DashboardHeader({ recordCount, isLoading, sortBy, sortByValue }) {
+function DashboardHeader({ recordCount, isLoading, sortBy, sortByValue, projectSummaries }) {
+
+  const projectStatus = {
+    'In Progress': 0,
+    'In Review': 0,
+    'Completed': 0,
+  };
+
+  if (projectSummaries) {
+    const eachStatusCount = useMemo(() => {
+      projectSummaries.map((project) => {
+        projectStatus[project.Status.status] += 1;
+      })
+    }, [projectSummaries]);
+  }
+
+  // {isLoading ? 'Loading projects...' : `${recordCount} active records | ${projectStatus['In Progress']} In Progress | ${projectStatus['In Review']} In Review | ${projectStatus['Completed']} Completed `}
+
   return (
     <div className="dashboard-heading">
       <div className="dashboard-title-group">
         <p className="eyebrow">Studio workspace</p>
         <h1>Projects</h1>
-        <p className="dashboard-meta">
-          {isLoading ? 'Loading projects...' : `${recordCount} active records`}
-        </p>
+        {projectSummaries && <p className="dashboard-meta">
+          {isLoading ? 'Loading projects...' :
+            <>
+              <span className='project-card-topline'>
+                <span className="status-count">
+                  <FolderKanban size={15} aria-hidden="true" />
+                  {`${recordCount} active records:`}
+                </span>
+                <span className="status-count status-count--in-progress">
+                  <LoaderCircle size={15} aria-hidden="true" />
+                  {projectStatus['In Progress']} In Progress
+                </span>
+                <span className="status-count status-count--in-review">
+                  <SearchCheck size={15} aria-hidden="true" />
+                  {projectStatus['In Review']} In Review
+                </span>
+                <span className="status-count status-count--completed">
+                  <CircleCheck size={15} aria-hidden="true" />
+                  {projectStatus['Completed']} Completed
+                </span>
+              </span>
+            </>}
+        </p>}
       </div>
       <div className="grid-actions">
         <label className="sort-control">
@@ -365,10 +403,41 @@ function SessionGrid({ onSelectSession, projectId }) {
 function SessionCard({ onClick, session }) {
   // Split the ISO date for the compact timeline badge without changing the stored value.
   const [year, month, day] = session.appointment_date?.split('-') ?? [];
+  const [hours, minutes] = (session.appointment_time?.split(':') ?? []);
   const monthLabel = month
     ? new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date(`${year}-${month}-15T12:00:00`)).toUpperCase()
     : 'TBC';
   const hasUpcomingStatus = session.status_id === 4;
+
+  const [sessionStatus, setSessionStatus] = useState('Upcoming');
+  console.log(`TEST TEST ${parseInt(year)} ${parseInt(month)} ${day}`);
+
+  useEffect(() => {
+    const determineSessionStatus = () => {
+      const today = new Date();
+
+      const todayObject = {
+        'year': today.getFullYear(),
+        'month': today.getMonth(),
+        'day': today.getDay(),
+        'hours': today.getHours(),
+        'minutes': today.getMinutes(),
+      };
+
+      if (todayObject['year'] > parseInt(year)
+        || (todayObject['year'] === parseInt(year) && todayObject['month'] > parseInt(month))
+        || (todayObject['year'] === parseInt(year) && todayObject['month'] === parseInt(month) && todayObject['day'] > parseInt(today))
+        || (todayObject['year'] === parseInt(year) && todayObject['month'] === parseInt(month) && todayObject['day'] === parseInt(today) && todayObject['hours'] > hours)
+        || (todayObject['year'] === parseInt(year) && todayObject['month'] === parseInt(month) && todayObject['day'] === parseInt(today) && todayObject['hours'] === hours && todayObject['minutes'] === minutes)) {
+        setSessionStatus('Recorded')
+      }
+      else {
+        console.log('Nikita sucks!');
+      }
+
+    }
+    determineSessionStatus();
+  }, [sessionStatus]);
 
   return (
     <button className="session-timeline-card" onClick={onClick}>
@@ -382,7 +451,7 @@ function SessionCard({ onClick, session }) {
           <strong>{session.appointment_time || 'Time not set'}</strong>
           <span>{session.duration || 'Duration not set'}</span>
           <span className={`session-status ${hasUpcomingStatus ? 'session-status--upcoming' : ''}`}>
-            {hasUpcomingStatus ? 'Upcoming' : 'Recorded'}
+            {sessionStatus === 'Upcoming' ? 'Upcoming' : 'Recorded'}
           </span>
           {session.amount_paid && <span className="session-payment">£{session.amount_paid}</span>}
         </span>
@@ -503,16 +572,7 @@ function SessionDetails({ onUpdated, session, projectId }) {
         </div>
       </> : session.appointment_date} />
 
-      <DetailRow label="Status" value={editSessionDetails ? <>
-        <div className="form-field">
-          <label htmlFor="status">Project status</label>
-          <select name="status" id="status" value={status ?? ''} onChange={(e) => setStatus(e.target.value)} required>
-            <option value=""></option>
-            <option value="1">In Progress</option>
-            <option value="2">Completed</option>
-            <option value="3">In Review</option>
-          </select>
-        </div></> : session.status_id} />
+
 
       <DetailRow label="Duration" value={editSessionDetails ? <>
         <div className="form-field form-field--full">
@@ -586,6 +646,8 @@ function ProjectInfo({ project }) {
     ['Private Artist Notes', project.artist_notes],
   ];
 
+  const [editProjectDetails, setEditProjectDetails] = useState(false);
+
   return (
     <section className="details-section project-info-section">
       <div className="details-section-heading">
@@ -593,21 +655,150 @@ function ProjectInfo({ project }) {
           <span className="project-card-kicker">Details</span>
           <h3>Project Information</h3>
         </div>
+        <button className="button button-secondary" onClick={() => {
+          if (!editProjectDetails) {
+            setEditProjectDetails(true);
+          } else setEditProjectDetails(false);
+        }}>
+          <Pencil size={16} aria-hidden="true" />
+          Edit
+        </button>
       </div>
       <div className="project-info-grid">
         {details.map(([label, value]) => (
-          <DetailRow key={label} label={label} value={value} />
+          <DetailRow key={label} label={label} value={value} edit={editProjectDetails ? 'Hello' : undefined} />
         ))}
       </div>
     </section>
   );
 }
 
-function DetailRow({ label, value }) {
-  return (
-    <div className="details-row">
-      <span className="details-label">{label}</span>
-      <span className="details-content">{value}</span>
-    </div>
-  );
+function DetailRow({ label, value, edit }) {
+  console.log(label);
+  let myVar = <div className="details-row">
+    <span className="details-label">{label}</span>
+    <span className="details-content">{value}</span>
+  </div>;
+  if (edit) {
+    switch (label) {
+      case 'Client': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="text" id="project-client" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Status': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <select id="project-status" defaultValue={value ?? ''}>
+              <option value="In Progress">In Progress</option>
+              <option value="In Review">In Review</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+        </div>; break;
+      case 'Placement': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="text" id="project-placement" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Approximate Size': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="text" id="project-size" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Tattoo Style': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="text" id="project-style" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Reference Link': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="url" id="project-reference" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Design Notes': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <textarea id="project-design-notes" rows="4" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Cartridge Brand': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="text" id="project-cartridge-brand" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Needle Configuration': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="text" id="project-needle-configuration" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Project Start Date': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="date" id="project-start-date" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Target Completion Date': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="date" id="project-target-end-date" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Agreed Project Price': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="number" id="project-agreed-price" min="0" step="0.01" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Deposit Amount': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="number" id="project-deposit-amount" min="0" step="0.01" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Deposit Received': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--checkbox form-field--full">
+            <span className="details-label">{label}</span>
+            <input type="checkbox" id="project-deposit-received" defaultChecked={value === 'Yes'} />
+          </div>
+        </div>; break;
+      case 'Client Feedback': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <textarea id="project-client-feedback" rows="3" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      case 'Private Artist Notes': myVar =
+        <div className="details-row">
+          <div className="form-field form-field--full">
+            <span className="details-label">{label}</span>
+            <textarea id="project-artist-notes" rows="4" defaultValue={value ?? ''} />
+          </div>
+        </div>; break;
+      default: break;
+    };
+  }
+  return myVar;
 }

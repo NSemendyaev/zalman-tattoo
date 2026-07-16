@@ -209,7 +209,7 @@ button {
 
 .upcoming-sesson {
   grid-column: 1;
-  max-height: 214px;
+  max-height: 250px;
   border: 1px solid rgba(33, 31, 28, 0.12);
   border-radius: 8px;
   background: #fffaf2;
@@ -377,11 +377,35 @@ button {
   color: #725009;
 }
 
-.status-pill--completed,
+.status-pill--completed {
+  border: 1px solid rgba(79, 75, 68, 0.24);
+  background: #6987cd50;
+  color: #1e3433;
+}
+
 .status-pill--default {
   border: 1px solid rgba(79, 75, 68, 0.24);
   background: #e5e3df;
   color: #4f4b44;
+}
+
+.status-count--in-progress {
+  color: #236b3d;
+}
+
+.status-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.status-count--in-review {
+  color: #725009;
+}
+
+.status-count--completed {
+  color: #1e3433;
 }
 
 .session-timeline {
