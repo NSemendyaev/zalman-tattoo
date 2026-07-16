@@ -3,24 +3,25 @@ import { Plus, X } from 'lucide-react';
 import supabase from '../../lib/supabaseClient.js';
 
 export function CreateProjectModal({ onClose, onCreated }) {
-  const [firstName, setFirstName] = useState(""); //                client_id + +
-  const [lastName, setLastName] = useState(""); //                  client_id + +
-  const [projectTitle, setProjectTitle] = useState(""); //          project_title + +
-  const [status, setStatus] = useState(0); //                       status_id + +
-  const [placement, setPlacement] = useState(""); //                placement + +
-  const [size, setSize] = useState(""); //                          size + +
-  const [style, setStyle] = useState(""); //                        style + +
-  const [reference, setReference] = useState(""); //                reference + +
-  const [designNotes, setDesignNotes] = useState(""); //            design_notes + +
-  const [cartridgeBrand, setCartridgeBrand] = useState(""); //      cartridge_brand + +
-  const [needleConfiguration, setNeedleConfig] = useState(""); //   needle_config + +
-  const [dateStart, setStartDate] = useState(""); //                date_start + +
-  const [targetEndDate, setTargetEndDate] = useState(""); //        target_end_date + +
-  const [agreedPrice, setAgreedPrice] = useState(0); //             agreed_price + +
-  const [depositAmount, setDepositAmount] = useState(0); //         deposit_amount + +
-  const [depositReceived, setDepositReceived] = useState(false); // deposit_received + +
-  const [clientFeedback, setClientFeedback] = useState(''); //      client_feedback +
-  const [artistNotes, setArtistNotes] = useState(""); //            artist_notes +
+  // Form state mirrors the Project columns sent in insertNewProject below.
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [projectTitle, setProjectTitle] = useState("");
+  const [status, setStatus] = useState(0);
+  const [placement, setPlacement] = useState("");
+  const [size, setSize] = useState("");
+  const [style, setStyle] = useState("");
+  const [reference, setReference] = useState("");
+  const [designNotes, setDesignNotes] = useState("");
+  const [cartridgeBrand, setCartridgeBrand] = useState("");
+  const [needleConfiguration, setNeedleConfig] = useState("");
+  const [dateStart, setStartDate] = useState("");
+  const [targetEndDate, setTargetEndDate] = useState("");
+  const [agreedPrice, setAgreedPrice] = useState(0);
+  const [depositAmount, setDepositAmount] = useState(0);
+  const [depositReceived, setDepositReceived] = useState(false);
+  const [clientFeedback, setClientFeedback] = useState('');
+  const [artistNotes, setArtistNotes] = useState("");
 
   const [userAlert, setUserAlert] = useState(false);
   const [client, setClient] = useState(undefined);
@@ -38,6 +39,7 @@ export function CreateProjectModal({ onClose, onCreated }) {
 
     setIsSaving(true);
 
+    // Build the database payload explicitly so UI state names can differ from column names.
     const { error } = await supabase
       .from('Project')
       .insert([
@@ -69,12 +71,14 @@ export function CreateProjectModal({ onClose, onCreated }) {
       return;
     }
 
+    // Let the parent refresh its project list, then close this modal there.
     onCreated();
   }
 
-  // Fetch Users while typing
+  // Search for matching clients whenever either name input changes.
   useEffect(() => {
     const fetchClient = async () => {
+      // Avoid an unfiltered query when the search fields are empty.
       if (!firstName && !lastName) {
         setClient([]);
         return;
@@ -126,6 +130,7 @@ export function CreateProjectModal({ onClose, onCreated }) {
             </div>
 
             <div className="client-match-list">
+              {/* Clicking a match stores the whole client record for client_id on submit. */}
               {client && client.map((cl, index) => {
                 return (
                   <section

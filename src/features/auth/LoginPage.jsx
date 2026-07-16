@@ -13,10 +13,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   const handleSignIn = async (event) => {
+    // Prevent the browser's normal form submission, which would reload the page.
     event.preventDefault();
     setLoading(true);
 
     try {
+      // The auth provider keeps Supabase-specific authentication code in one place.
       const result = await signInUser(email, password);
 
       if (result?.success) {

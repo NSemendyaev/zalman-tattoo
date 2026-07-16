@@ -2,6 +2,7 @@ import { useState } from 'react';
 import supabase from '../../lib/supabaseClient';
 
 export default function AddNewSession({ onClose, projectId }) {
+    // Legacy session form retained for reference; ProjectDetails currently uses ScheduleSession.
     const [sessionDescription, setSessionDescription] = useState('');
     const [sessionDate, setSessionDate] = useState('');
     const [duration, setDuration] = useState('');
@@ -18,6 +19,7 @@ export default function AddNewSession({ onClose, projectId }) {
     }
 
     async function uploadSessionPhotos() {
+        // Storage uploads happen before the public URLs are stored in the Session row.
         if (!selectedFiles) {
             return;
         }

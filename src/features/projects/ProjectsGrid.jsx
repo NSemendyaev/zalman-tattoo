@@ -1,19 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpDown, CalendarPlus, Check, Pencil, SlidersHorizontal, X } from 'lucide-react';
 import ScheduleSession from '../../components/modals/ScheduleSession';
 import supabase from '../../lib/supabaseClient';
 import UpcomingSession from './UpcomingSession';
 
 export default function ProjectsGrid() {
+  // `null` represents the loading state; an empty array would mean "loaded, but no projects".
   const [projectSummaries, setProjectSummaries] = useState(null);
+  const [sortBy, setSortBy] = useState('');
 
   useEffect(() => {
+    // This relationship select fetches each project together with its client and status labels.
     async function fetchProjectSummaries() {
       const { data, error } = await supabase
         .from('Project')
         .select(`
           id,
           project_title,
+          date_start,
           target_end_date,
           client_id,
           Status (
@@ -36,13 +40,48 @@ export default function ProjectsGrid() {
     fetchProjectSummaries();
   }, []);
 
-  const isLoading = projectSummaries === null;
+  // Sorting is derived data: preserve the fetched array and create a sorted copy for display.
+  const sortedProjectSummaries = useMemo(() => {
+    if (!projectSummaries) {
+      return null;
+    }
+
+    // Array.sort mutates its array, so copy state before sorting it.
+    const summaries = [...projectSummaries];
+
+    if (sortBy === 'date-new-first') {
+      return summaries.sort((a, b) => (b.date_start ?? '').localeCompare(a.date_start ?? ''));
+    }
+
+    if (sortBy === 'date-old-first') {
+      return summaries.sort((a, b) => (a.date_start ?? '').localeCompare(b.date_start ?? ''));
+    }
+
+    // Lower rank values appear first. Selecting a different sort option selects a new ranking.
+    const projectStatus = {
+      'in-progress': { 'In Progress': 0, 'In Review': 1, 'Completed': 2 },
+      'in-review': { 'In Review': 0, 'In Progress': 1, 'Completed': 2 },
+      'completed': { 'Completed': 0, 'In Review': 1, 'In Progress': 2 },
+    }[sortBy];
+
+    if (projectStatus) {
+      return summaries.sort(
+        (a, b) => (projectStatus[a.Status.status] ?? Number.MAX_SAFE_INTEGER)
+          - (projectStatus[b.Status.status] ?? Number.MAX_SAFE_INTEGER),
+      );
+    }
+
+    return summaries;
+  }, [projectSummaries, sortBy]);
+
+  const isLoading = sortedProjectSummaries === null;
 
   return (
     <section className="dashboard-section">
       <DashboardHeader
         recordCount={projectSummaries?.length}
         isLoading={isLoading}
+        sortBy={setSortBy}
       />
 
       <UpcomingSession />
@@ -52,7 +91,7 @@ export default function ProjectsGrid() {
           ? Array.from({ length: 3 }, (_, index) => (
             <div className="project-card project-card-loading" key={index} />
           ))
-          : projectSummaries.map((project) => (
+          : sortedProjectSummaries.map((project) => (
             <ProjectCard
               key={project.id}
               clientName={`${project.Client.first_name} ${project.Client.last_name}`}
@@ -66,7 +105,7 @@ export default function ProjectsGrid() {
   );
 }
 
-function DashboardHeader({ recordCount, isLoading }) {
+function DashboardHeader({ recordCount, isLoading, sortBy }) {
   return (
     <div className="dashboard-heading">
       <div className="dashboard-title-group">
@@ -77,10 +116,19 @@ function DashboardHeader({ recordCount, isLoading }) {
         </p>
       </div>
       <div className="grid-actions">
-        <button className="button button-ghost">
+        <label className="sort-control">
           <ArrowUpDown size={16} aria-hidden="true" />
-          Sort by
-        </button>
+          <span>Sort by</span>
+          {/* The setter is passed from the parent; changing it recomputes the memoized display list. */}
+          <select name="sort-options" id="sort-options" value={sortBy} onChange={(e) => sortBy(e.target.value)}>
+            <option value="">Default order</option>
+            <option value="date-new-first">Project Date: New First</option>
+            <option value="date-old-first">Project Date: Old First</option>
+            <option value="in-progress">Status: In Progress</option>
+            <option value="in-review">Status: In Review</option>
+            <option value="completed">Status: Completed</option>
+          </select>
+        </label>
         <button className="button button-ghost">
           <SlidersHorizontal size={16} aria-hidden="true" />
           Filter
@@ -101,6 +149,7 @@ function ProjectCard({ clientName, projectId, projectTitle, status }) {
   const [upcomingSession, setUpcomingSession] = useState('Not Scheduled');
 
   useEffect(() => {
+    // Each card independently asks the database for this project's nearest future session.
     const fetchUpcomingSession = async () => {
       try {
         const { data, error } = await supabase
@@ -154,6 +203,7 @@ export function ProjectDetails({ onClose, projectId }) {
   const [selectedSession, setSelectedSession] = useState(null);
   const [isNewSessionFormOpen, setIsNewSessionFormOpen] = useState(false);
   const [projectIdForNewSession, setProjectIdForNewSession] = useState(null);
+  // Incrementing this key remounts SessionGrid after a session is created or edited.
   const [sessionsVersion, setSessionsVersion] = useState(0);
 
   useEffect(() => {
@@ -199,6 +249,7 @@ export function ProjectDetails({ onClose, projectId }) {
   }, [projectId]);
 
   function openNewSessionForm(projectId) {
+    // Keep the ID here so ScheduleSession knows which project to attach the row to.
     setProjectIdForNewSession(projectId);
     setIsNewSessionFormOpen(true);
   }
@@ -275,6 +326,7 @@ function SessionGrid({ onSelectSession, projectId }) {
   const [sessions, setSessions] = useState(null);
 
   useEffect(() => {
+    // This query runs whenever a different project is opened.
     async function fetchSessions() {
       const { data, error } = await supabase
         .from('Session')
@@ -293,11 +345,11 @@ function SessionGrid({ onSelectSession, projectId }) {
   }, [projectId]);
 
   if (!sessions) {
-    return <div className="cards-grid" />;
+    return <div className="session-timeline" />;
   }
 
   return (
-    <div className="cards-grid">
+    <div className="session-timeline">
       {sessions.map((session) => (
         <SessionCard
           key={session.id}
@@ -310,17 +362,37 @@ function SessionGrid({ onSelectSession, projectId }) {
 }
 
 function SessionCard({ onClick, session }) {
+  // Split the ISO date for the compact timeline badge without changing the stored value.
+  const [year, month, day] = session.appointment_date?.split('-') ?? [];
+  const monthLabel = month
+    ? new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date(`${year}-${month}-15T12:00:00`)).toUpperCase()
+    : 'TBC';
+  const hasUpcomingStatus = session.status_id === 4;
+
   return (
-    <button className="project-card session-card" onClick={onClick}>
-      <span className="project-preview">
-        <strong>{session.appointment_date}</strong>
-        <strong>{session.appointment_time}</strong>
+    <button className="session-timeline-card" onClick={onClick}>
+      <span className="session-timeline-marker" aria-hidden="true" />
+      <span className="session-date-badge">
+        <strong>{day ?? '--'}</strong>
+        <small>{monthLabel}</small>
+      </span>
+      <span className="session-summary">
+        <span className="session-summary-topline">
+          <strong>{session.appointment_time || 'Time not set'}</strong>
+          <span>{session.duration || 'Duration not set'}</span>
+          <span className={`session-status ${hasUpcomingStatus ? 'session-status--upcoming' : ''}`}>
+            {hasUpcomingStatus ? 'Upcoming' : 'Recorded'}
+          </span>
+          {session.amount_paid && <span className="session-payment">£{session.amount_paid}</span>}
+        </span>
+        <span className="session-summary-notes">{session.session_notes || 'No session notes added yet.'}</span>
       </span>
     </button>
   );
 }
 
 function SessionDetails({ onUpdated, session, projectId }) {
+  // Editing uses local copies so Cancel/Edit mode never mutates the selected session object directly.
   const [editSessionDetails, setSessionDetails] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -333,6 +405,7 @@ function SessionDetails({ onUpdated, session, projectId }) {
   const [sessionNotes, setSessionNotes] = useState(session.session_notes);
 
   function handleFileSelection(event) {
+    // Convert the browser FileList into an array so it can be uploaded with a for...of loop.
     setSelectedFiles(Array.from(event.target.files ?? []));
   }
 
@@ -346,6 +419,7 @@ function SessionDetails({ onUpdated, session, projectId }) {
       return;
     }
 
+    // Upload sequentially so each generated storage path receives a stable photo number.
     let photoNumber = 1;
     for (const file of selectedFiles) {
       const filePath = getPhotoPath(file, photoNumber++);
@@ -360,6 +434,7 @@ function SessionDetails({ onUpdated, session, projectId }) {
   }
 
   async function updateSession() {
+    // Public URLs are stored in the Session table only after their storage files exist.
     const imageUrls = [];
     let photoNumber = 1;
 
@@ -394,6 +469,7 @@ function SessionDetails({ onUpdated, session, projectId }) {
     setFormError('');
     setIsSaving(true);
     try {
+      // Keep these awaits in order: upload files first, then save their URLs with the session.
       await uploadSessionPhotos();
       const updatedSession = await updateSession();
       onUpdated(updatedSession);
@@ -489,6 +565,7 @@ function SessionDetails({ onUpdated, session, projectId }) {
 }
 
 function ProjectInfo({ project }) {
+  // A data-driven list keeps the detail layout consistent for every project field.
   const details = [
     ['Client', `${project.Client.first_name} ${project.Client.last_name}`],
     ['Status', project.Status?.status],

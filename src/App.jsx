@@ -10,14 +10,18 @@ import { useState } from 'react';
 function App() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  // Changing this key deliberately remounts the grid after a project is created,
+  // causing it to fetch the latest project list.
   const [projectsVersion, setProjectsVersion] = useState(0);
 
+  // `undefined` means auth is still loading; `null` means no signed-in user.
   useEffect(() => {
     if (session === null) {
       navigate('/login');
     }
   }, [navigate, session]);
 
+  // Wait for Supabase to restore any existing browser session before rendering.
   if (session === undefined) {
     return null;
   }

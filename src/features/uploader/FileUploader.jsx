@@ -2,6 +2,7 @@ import { useState } from 'react';
 import supabase from '../../lib/supabaseClient.js';
 
 export default function FileUploader({ projectId }) {
+  // File inputs expose a FileList, so convert it to a normal array for iteration.
   const [selectedFiles, setSelectedFiles] = useState(null);
 
   function handleFileSelection(event) {
@@ -13,6 +14,7 @@ export default function FileUploader({ projectId }) {
       return;
     }
 
+    // A deterministic path keeps each file organized by its owning project.
     let photoNumber = 1;
     for (const file of selectedFiles) {
       const filePath = `project${projectId}/${file.name}${photoNumber++}`;

@@ -40,6 +40,7 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
+    // Read the initial session once, then keep it synchronized with future auth events.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });

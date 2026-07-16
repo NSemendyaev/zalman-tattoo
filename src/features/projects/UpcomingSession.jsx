@@ -3,10 +3,12 @@ import supabase from "../../lib/supabaseClient";
 import { ProjectDetails } from "./ProjectsGrid";
 
 export default function UpcomingSession() {
+    // The RPC returns the nearest upcoming session across every project.
     const [upcomingSession, setUpcomingSession] = useState(undefined);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
     useEffect(() => {
+        // An empty dependency list means this dashboard summary loads once on mount.
         const fetchUpcomingSession = async () => {
             try {
                 const { data, error } = await supabase
@@ -45,6 +47,7 @@ export default function UpcomingSession() {
                     </span>
                 </button>
                 {isDetailsOpen && (
+                    // Reuse the project modal so the summary card opens the same detail view.
                     <ProjectDetails
                         projectId={upcomingSession[0].project_id}
                         onClose={() => setIsDetailsOpen(false)}

@@ -1,8 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 
 export default function Footer() {
-  // The footer reuses the same visual nav style as the header while keeping the
-  // social/contact buttons in one small, predictable component.
+  // Kept separate from App so shared layout chrome stays small and reusable.
   return (
     <div className="app-footer">
       <div className="footer-actions">

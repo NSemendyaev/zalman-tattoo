@@ -3,6 +3,7 @@ import { UserPlus, X } from 'lucide-react';
 import supabase from '../../lib/supabaseClient.js';
 
 export function AddClientModal({ onClose }) {
+  // These local values make the form controlled: each input updates React state.
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -21,6 +22,7 @@ export function AddClientModal({ onClose }) {
     setDoesClientExist(false);
     setIsSaving(true);
 
+    // Check the phone number first so the UI can prevent an accidental duplicate.
     const { data: existingClients, error: lookupError } = await supabase
       .from('Client')
       .select('id, first_name, last_name')
@@ -38,6 +40,7 @@ export function AddClientModal({ onClose }) {
       return;
     }
 
+    // Only insert after the duplicate check has succeeded.
     const { error } = await supabase
       .from('Client')
       .insert([
