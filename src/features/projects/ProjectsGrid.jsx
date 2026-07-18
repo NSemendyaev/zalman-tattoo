@@ -3,6 +3,7 @@ import { ArrowUpDown, CalendarPlus, Check, CircleCheck, FolderKanban, LoaderCirc
 import ScheduleSession from '../../components/modals/ScheduleSession';
 import supabase from '../../lib/supabaseClient';
 import UpcomingSession from './UpcomingSession';
+import { FaInstagram, FaWhatsapp } from 'react-icons/fa';
 
 export default function ProjectsGrid() {
   // `null` represents the loading state; an empty array would mean "loaded, but no projects".
@@ -25,7 +26,9 @@ export default function ProjectsGrid() {
           ),
           Client (
             first_name,
-            last_name
+            last_name,
+            instagram,
+            phone
           ) 
         `);
 
@@ -100,6 +103,8 @@ export default function ProjectsGrid() {
               projectId={project.id}
               projectTitle={project.project_title}
               status={project.Status.status}
+              instagram={project.Client?.instagram}
+              phone={project.Client?.phone}
             />
           ))}
       </div>
@@ -177,13 +182,14 @@ function DashboardHeader({ recordCount, isLoading, sortBy, sortByValue, projectS
   );
 }
 
-function ProjectCard({ clientName, projectId, projectTitle, status }) {
+function ProjectCard({ clientName, projectId, projectTitle, status, instagram, phone }) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const statusClassName = {
     'In Progress': 'status-pill--in-progress',
     'In Review': 'status-pill--in-review',
     'Completed': 'status-pill--completed',
   }[status] ?? 'status-pill--default';
+
 
   const [upcomingSession, setUpcomingSession] = useState('Not Scheduled');
 
@@ -220,7 +226,18 @@ function ProjectCard({ clientName, projectId, projectTitle, status }) {
             <span className={`status-pill ${statusClassName}`}>{status}</span>
           </span>
           <strong>{projectTitle}</strong>
-          <span className="project-client">{clientName}</span>
+          <span>Photos</span>
+          <span className="project-client">
+            {clientName}
+            <span className="project-contact-actions">
+              <a className="project-contact-link" href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label={`Open WhatsApp chat with ${clientName}`} title="WhatsApp">
+                <FaWhatsapp aria-hidden="true" />
+              </a>
+              <a className="project-contact-link" href={instagram} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label={`Open ${clientName}'s Instagram`} title="Instagram">
+                <FaInstagram aria-hidden="true" />
+              </a>
+            </span>
+          </span>
           <span className="project-card-footer">
             <span className="project-card-meta">Upcoming Session</span>
             <span className="project-card-date">{upcomingSession}</span>
@@ -572,8 +589,6 @@ function SessionDetails({ onUpdated, session, projectId }) {
         </div>
       </> : session.appointment_date} />
 
-
-
       <DetailRow label="Duration" value={editSessionDetails ? <>
         <div className="form-field form-field--full">
           <label htmlFor="session-duration">Duration</label>
@@ -626,6 +641,35 @@ function SessionDetails({ onUpdated, session, projectId }) {
 }
 
 function ProjectInfo({ project }) {
+
+  const statusCode = {
+    'In Progress': 1,
+    'Completed': 2,
+    'In Review': 3,
+    'Upcoming': 4,
+    undefined: 3,
+  };
+
+  const [status, setStatus] = useState(`${statusCode[project?.Status?.status] ?? ''}`);
+  const [placement, setPlacement] = useState(`${project?.placement ?? ''}`);
+  const [size, setSize] = useState(`${project?.size ?? ''}`);
+  const [style, setStyle] = useState(`${project?.style ?? ''}`);
+  const [reference, setReference] = useState(`${project?.reference ?? ''}`);
+  const [designNotes, setDesignNotes] = useState(`${project?.design_notes ?? ''}`);
+  const [cartridgeBrand, setCartridgeBrand] = useState(`${project?.cartridge_brand ?? ''}`);
+  const [needleConfiguration, setNeedleConfig] = useState(`${project?.needle_config ?? ''}`);
+  const [dateStart, setStartDate] = useState(`${project?.date_start ?? ''}`);
+  const [targetEndDate, setTargetEndDate] = useState(`${project?.target_end_date ?? ''}`);
+  const [agreedPrice, setAgreedPrice] = useState(`${project?.agreed_price ?? 0}`);
+  const [depositAmount, setDepositAmount] = useState(`${project?.deposit_amount ?? 0}`);
+  const [depositReceived, setDepositReceived] = useState(`${project?.deposit_received ?? false}`);
+  const [clientFeedback, setClientFeedback] = useState(`${project?.client_feedback ?? ''}`);
+  const [artistNotes, setArtistNotes] = useState(`${project?.artist_notes ?? ''}`);
+
+  if (project?.Status?.status) {
+    console.log(project?.Status.status);
+  }
+
   // A data-driven list keeps the detail layout consistent for every project field.
   const details = [
     ['Client', `${project.Client.first_name} ${project.Client.last_name}`],
@@ -646,7 +690,65 @@ function ProjectInfo({ project }) {
     ['Private Artist Notes', project.artist_notes],
   ];
 
+  const states = {
+    'Status': [status, setStatus],
+    'Placement': [placement, setPlacement],
+    'Approximate Size': [size, setSize],
+    'Tattoo Style': [style, setStyle],
+    'Reference Link': [reference, setReference],
+    'Design Notes': [designNotes, setDesignNotes],
+    'Cartridge Brand': [cartridgeBrand, setCartridgeBrand],
+    'Needle Configuration': [needleConfiguration, setNeedleConfig],
+    'Project Start Date': [dateStart, setStartDate],
+    'Target Completion Date': [targetEndDate, setTargetEndDate],
+    'Agreed Project Price': [agreedPrice, setAgreedPrice],
+    'Deposit Amount': [depositAmount, setDepositAmount],
+    'Deposit Received': [depositReceived, setDepositReceived],
+    'Client Feedback': [clientFeedback, setClientFeedback],
+    'Private Artist Notes': [artistNotes, setArtistNotes],
+  };
+
   const [editProjectDetails, setEditProjectDetails] = useState(false);
+
+  async function handleUpdateProject() {
+    console.log('Running handleUpdateProject');
+    try {
+      const { data, error } = await supabase
+        .from('Project')
+        .update({
+          status_id: statusCode[status],
+          placement: placement,
+          size: size,
+          style: style,
+          reference: reference,
+          design_notes: designNotes,
+          cartridge_brand: cartridgeBrand,
+          needle_config: needleConfiguration,
+          date_start: dateStart,
+          target_end_date: targetEndDate,
+          agreed_price: Number(agreedPrice),
+          deposit_amount: Number(depositAmount),
+          deposit_received: depositReceived,
+          client_feedback: clientFeedback,
+          artist_notes: artistNotes,
+        })
+        .eq('id', project.id)
+        .select();
+
+      if (error) {
+        console.log(error);
+        return;
+      } else {
+        console.log(data);
+      }
+
+      // Set new state
+
+
+    } catch (error) {
+      console.log(error);
+    }
+  }
 
   return (
     <section className="details-section project-info-section">
@@ -665,140 +767,150 @@ function ProjectInfo({ project }) {
         </button>
       </div>
       <div className="project-info-grid">
-        {details.map(([label, value]) => (
-          <DetailRow key={label} label={label} value={value} edit={editProjectDetails ? 'Hello' : undefined} />
-        ))}
+        {details.map(([label, value]) => {
+
+          let myVar =
+            <div key={value} className="details-row">
+              <span className="details-label">{label}</span>
+              <span className="details-content">{value}</span>
+            </div>;
+          if (editProjectDetails) {
+            switch (label) {
+              case 'Status': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <select id="project-status" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)}>
+                      <option value="In Progress">In Progress</option>
+                      <option value="In Review">In Review</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                </div>; break;
+              case 'Placement': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="text" id="project-placement" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Approximate Size': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="text" id="project-size" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Tattoo Style': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="text" id="project-style" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Reference Link': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="url" id="project-reference" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Design Notes': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <textarea id="project-design-notes" rows="4" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Cartridge Brand': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="text" id="project-cartridge-brand" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Needle Configuration': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="text" id="project-needle-configuration" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Project Start Date': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="date" id="project-start-date" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Target Completion Date': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="date" id="project-target-end-date" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Agreed Project Price': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="number" id="project-agreed-price" min="0" step="0.01" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Deposit Amount': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="number" id="project-deposit-amount" min="0" step="0.01" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Deposit Received': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--checkbox form-field--full">
+                    <span className="details-label">{label}</span>
+                    <input type="checkbox" id="project-deposit-received" defaultChecked={value === 'Yes'} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Client Feedback': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <textarea id="project-client-feedback" rows="3" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              case 'Private Artist Notes': myVar =
+                <div className="details-row">
+                  <div className="form-field form-field--full">
+                    <span className="details-label">{label}</span>
+                    <textarea id="project-artist-notes" rows="4" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
+                  </div>
+                </div>; break;
+              default: break;
+            };
+          }
+          return myVar;
+
+        })}
+      </div>
+      <div className=''>
+        <span className="project-card-kicker"></span>
+        {editProjectDetails &&
+          <button type='button' className="button button-secondary" onClick={handleUpdateProject}>
+            <Check size={16} aria-hidden="true" />
+            Confirm
+          </button>}
       </div>
     </section>
   );
 }
 
-function DetailRow({ label, value, edit }) {
-  console.log(label);
-  let myVar = <div className="details-row">
-    <span className="details-label">{label}</span>
-    <span className="details-content">{value}</span>
-  </div>;
-  if (edit) {
-    switch (label) {
-      case 'Client': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="text" id="project-client" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Status': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <select id="project-status" defaultValue={value ?? ''}>
-              <option value="In Progress">In Progress</option>
-              <option value="In Review">In Review</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
-        </div>; break;
-      case 'Placement': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="text" id="project-placement" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Approximate Size': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="text" id="project-size" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Tattoo Style': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="text" id="project-style" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Reference Link': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="url" id="project-reference" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Design Notes': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <textarea id="project-design-notes" rows="4" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Cartridge Brand': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="text" id="project-cartridge-brand" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Needle Configuration': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="text" id="project-needle-configuration" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Project Start Date': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="date" id="project-start-date" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Target Completion Date': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="date" id="project-target-end-date" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Agreed Project Price': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="number" id="project-agreed-price" min="0" step="0.01" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Deposit Amount': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="number" id="project-deposit-amount" min="0" step="0.01" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Deposit Received': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--checkbox form-field--full">
-            <span className="details-label">{label}</span>
-            <input type="checkbox" id="project-deposit-received" defaultChecked={value === 'Yes'} />
-          </div>
-        </div>; break;
-      case 'Client Feedback': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <textarea id="project-client-feedback" rows="3" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      case 'Private Artist Notes': myVar =
-        <div className="details-row">
-          <div className="form-field form-field--full">
-            <span className="details-label">{label}</span>
-            <textarea id="project-artist-notes" rows="4" defaultValue={value ?? ''} />
-          </div>
-        </div>; break;
-      default: break;
-    };
-  }
-  return myVar;
+
+function DetailRow({ label, value }) {
+
+  return (
+    <div className="details-row">
+      <span className="details-label">{label}</span>
+      <span className="details-content">{value}</span>
+    </div>
+  );
 }

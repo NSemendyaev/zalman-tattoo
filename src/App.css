@@ -339,8 +339,45 @@ button {
 }
 
 .project-client {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: #71675b;
   font-size: 0.94rem;
+  min-width: 0;
+}
+
+.project-contact-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.project-contact-link {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(33, 31, 28, 0.14);
+  border-radius: 6px;
+  background: #f8efe3;
+  color: #71675b;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.project-contact-link:hover {
+  border-color: rgba(163, 61, 43, 0.42);
+  background: #fbe8dc;
+  color: #a33d2b;
+  transform: translateY(-1px);
+}
+
+.project-contact-link:focus-visible {
+  outline: 3px solid rgba(163, 61, 43, 0.28);
+  outline-offset: 2px;
 }
 
 .project-card-footer {
@@ -1055,6 +1092,12 @@ button {
 
 @media (max-width: 760px) {
 
+  .app-layout-main-element,
+  .nav-bar,
+  .app-footer {
+    width: min(1180px, calc(100% - 24px));
+  }
+
   .nav-bar,
   .dashboard-heading,
   .app-footer {
@@ -1078,6 +1121,55 @@ button {
 
   .app-layout-main-element {
     padding-top: 28px;
+    padding-bottom: 36px;
+  }
+
+  .dashboard-section {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    gap: 16px;
+  }
+
+  .dashboard-heading,
+  .upcoming-sesson,
+  .cards-grid {
+    grid-column: 1;
+  }
+
+  .dashboard-heading {
+    gap: 16px;
+  }
+
+  .dashboard-heading h1 {
+    font-size: 1.9rem;
+  }
+
+  .upcoming-sesson {
+    max-height: none;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .grid-actions .button,
+  .sort-control {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .sort-control {
+    justify-content: flex-start;
+  }
+
+  .sort-control select {
+    min-width: 0;
+    flex: 1;
   }
 
   .modal {
@@ -1086,7 +1178,21 @@ button {
 
   .modal-content,
   .login-form {
-    padding: 22px;
+    padding: 20px;
+  }
+
+  .modal-heading {
+    margin-bottom: 18px;
+  }
+
+  .modal-heading h2,
+  .project-details h2 {
+    font-size: 1.5rem;
+  }
+
+  .close {
+    top: 12px;
+    right: 12px;
   }
 
   .project-form-grid {
@@ -1136,6 +1242,23 @@ button {
     flex-direction: column;
   }
 
+  .details-section {
+    padding: 14px;
+  }
+
+  .project-preview {
+    padding: 16px;
+  }
+
+  .project-preview strong {
+    font-size: 1.22rem;
+  }
+
+  .project-contact-link {
+    width: 36px;
+    height: 36px;
+  }
+
   .session-timeline {
     padding-left: 20px;
   }
@@ -1157,5 +1280,16 @@ button {
 
   .session-payment {
     margin-left: 0;
+  }
+
+  .session-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .toast {
+    right: 12px;
+    bottom: 12px;
+    max-width: calc(100% - 24px);
   }
 }
