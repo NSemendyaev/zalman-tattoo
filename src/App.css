@@ -245,6 +245,19 @@ button {
   gap: 8px;
 }
 
+.dashboard-actions,
+.project-management-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dashboard-actions {
+  max-width: 100%;
+}
+
 .grid-actions .button {
   min-height: 36px;
 }
@@ -1157,6 +1170,18 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-actions,
+  .project-management-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .project-management-actions .button {
+    width: 100%;
+    min-height: 44px;
+  }
+
   .grid-actions .button,
   .sort-control {
     width: 100%;
@@ -1293,3 +1318,10 @@ button {
     max-width: calc(100% - 24px);
   }
 }
+
+.project-photos-gallery {
+  justify-content: center;
+  text-align: center;
+}
+
+.project-photo {}

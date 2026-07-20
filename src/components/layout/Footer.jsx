@@ -5,12 +5,6 @@ export default function Footer() {
   return (
     <div className="app-footer">
       <div className="footer-actions">
-        <form action="https://www.instagram.com/zalman.tattoo/">
-          <button className="button button-ghost">
-            Instagram
-            <ExternalLink size={16} aria-hidden="true" />
-          </button>
-        </form>
       </div>
     </div>
   );

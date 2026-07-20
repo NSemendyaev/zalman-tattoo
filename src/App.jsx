@@ -29,10 +29,13 @@ function App() {
   return (
     <div className='app-layout-grid'>
       <header className='app-layout-header-element'>
-        <NavigationBar onProjectCreated={() => setProjectsVersion((version) => version + 1)} />
+        <NavigationBar />
       </header>
       <main className='app-layout-main-element'>
-        <ProjectsGrid key={projectsVersion} />
+        <ProjectsGrid
+          key={projectsVersion}
+          onProjectCreated={() => setProjectsVersion((version) => version + 1)}
+        />
       </main>
       <footer className='app-layout-footer-element'><Footer /></footer>
     </div>

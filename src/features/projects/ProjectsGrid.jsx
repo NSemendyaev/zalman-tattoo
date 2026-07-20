@@ -184,6 +184,7 @@ function DashboardHeader({ recordCount, isLoading, sortBy, sortByValue, projectS
 
 function ProjectCard({ clientName, projectId, projectTitle, status, instagram, phone }) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [photos, setPhotos] = useState(NaN);
   const statusClassName = {
     'In Progress': 'status-pill--in-progress',
     'In Review': 'status-pill--in-review',
@@ -215,6 +216,29 @@ function ProjectCard({ clientName, projectId, projectTitle, status, instagram, p
     }
 
     fetchUpcomingSession();
+
+    const fetchPhotos = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('Session')
+          .select('img_urls')
+          .eq('project_id', projectId);
+
+        if (error) {
+          console.log(`Data: ${data}`);
+          return;
+        }
+
+        console.log(`Data ${data}`);
+        setPhotos(data);
+
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    fetchPhotos();
+
   }, [projectId]);
 
   return (
@@ -226,7 +250,22 @@ function ProjectCard({ clientName, projectId, projectTitle, status, instagram, p
             <span className={`status-pill ${statusClassName}`}>{status}</span>
           </span>
           <strong>{projectTitle}</strong>
-          <span>Photos</span>
+
+          <span className='project-photos-gallery' onClick={(e) => {
+            e.stopPropagation();
+
+          }}>
+            {photos && photos[photos.length - 1]['img_urls'].length > 0 &&
+
+              <img className='project-photo' src={photos[photos.length - 1]['img_urls'][0]} alt={'Photo'} width={200} height={150} />
+
+              ||
+
+              <img className='project-photo' src={'https://picsum.photos/800/600'} alt={'Placeholder'} width={200} height={150} />
+
+            }
+          </span>
+
           <span className="project-client">
             {clientName}
             <span className="project-contact-actions">
