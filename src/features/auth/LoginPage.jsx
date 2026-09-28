@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { LogIn, X } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { useAuth } from '../../context/useAuth.js';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [hasLoginError, setHasLoginError] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
-  const { signInUser } = useAuth();
+  const { signInUser, session, authError } = useAuth();
   const navigate = useNavigate();
 
   const handleSignIn = async (event) => {
     // Prevent the browser's normal form submission, which would reload the page.
     event.preventDefault();
     setLoading(true);
+    setLoginError('');
 
     try {
       // The auth provider keeps Supabase-specific authentication code in one place.
@@ -24,19 +25,20 @@ export default function LoginPage() {
       if (result?.success) {
         navigate('/');
       } else {
-        setHasLoginError(true);
+        setLoginError(result?.error || 'Could not sign in.');
       }
-    } catch (error) {
-      console.log(error);
-      setHasLoginError(true);
+    } catch {
+      setLoginError('Could not connect. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  if (session) return <Navigate to="/" replace />;
+
   return (
     <>
-      {hasLoginError && <LoginErrorToast onClose={() => setHasLoginError(false)} />}
+      {(loginError || authError) && <LoginErrorToast message={loginError || authError} onClose={() => setLoginError('')} />}
       <div className="landing-page">
         <div className="login-form">
           <div className="login-brand">
@@ -48,10 +50,10 @@ export default function LoginPage() {
           </div>
           <form onSubmit={handleSignIn}>
             <label htmlFor="login-email">Email</label><br />
-            <input type="email" id="login-email" onChange={event => setEmail(event.target.value)} autoFocus /><br />
+            <input type="email" id="login-email" autoComplete="username" required onChange={event => setEmail(event.target.value)} autoFocus /><br />
 
             <label htmlFor="login-password">Password</label><br />
-            <input type="password" id="login-password" onChange={event => setPassword(event.target.value)} /><br />
+            <input type="password" id="login-password" autoComplete="current-password" required onChange={event => setPassword(event.target.value)} /><br />
 
             <button type="submit" disabled={loading}>
               <LogIn size={16} aria-hidden="true" />
@@ -64,13 +66,13 @@ export default function LoginPage() {
   );
 }
 
-function LoginErrorToast({ onClose }) {
+function LoginErrorToast({ onClose, message }) {
   return (
     <div className="toast">
       <button className="toast-close" type="button" onClick={onClose} aria-label="Dismiss message" title="Dismiss message">
         <X size={16} aria-hidden="true" />
       </button>
-      <p className="toast-message">Invalid password or email.</p>
+      <p className="toast-message" role="alert">{message}</p>
     </div >
   );
 }

@@ -1,55 +1,55 @@
 import { useEffect, useState } from "react"
 import supabase from "../../lib/supabaseClient";
 import { ProjectDetails } from "./ProjectsGrid";
+import { ArrowUpRight, CalendarDays } from 'lucide-react';
 
-export default function UpcomingSession() {
+export default function UpcomingSession({ revision, onProjectChanged }) {
     // The RPC returns the nearest upcoming session across every project.
     const [upcomingSession, setUpcomingSession] = useState(undefined);
+    const [loadError, setLoadError] = useState('');
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
     useEffect(() => {
-        // An empty dependency list means this dashboard summary loads once on mount.
+        // Refresh the appointment summary after project or session changes.
         const fetchUpcomingSession = async () => {
             try {
                 const { data, error } = await supabase
-                    .rpc('fetch_upcoming_session_overall');
+                    .rpc('studio_upcoming_session');
 
                 if (error) {
-                    console.log(error);
+                    setLoadError('Could not load the next appointment.');
+                    setUpcomingSession([]);
                     return;
-                } else {
-                    console.log(data);
-                    setUpcomingSession(data);
                 }
+                setLoadError('');
+                setUpcomingSession(Array.isArray(data) ? data : data ? [data] : []);
 
-            } catch (error) {
-                console.log(error);
+            } catch {
+                setLoadError('Could not load the next appointment.');
+                setUpcomingSession([]);
             }
         };
 
         fetchUpcomingSession();
-    }, []);
+    }, [revision]);
+
+    if (loadError) return <div className="upcoming-sesson"><p className="form-error" role="alert">{loadError}</p></div>;
+    if (upcomingSession === undefined) return <div className="upcoming-sesson" role="status">Loading next appointment…</div>;
 
     // An empty array is truthy, so also confirm that the RPC returned a first row.
     if (upcomingSession?.length > 0) {
         return (
             <>
-                <button className='upcoming-sesson' onClick={() => setIsDetailsOpen(true)}>
-                    <span className="project-preview">
-                        <span className="project-card-topline">
-                            <span className="project-card-kicker">Upcoming Session</span>
-                        </span>
-                        <span><strong>{upcomingSession[0].project_title}</strong></span><br />
-                        <span className="project-client">{upcomingSession[0].first_name} {upcomingSession[0].last_name}</span><br />
-                        <span className="project-card-footer">
-                            <span className="project-card-date">{upcomingSession[0].appointment_date}</span><br />
-                            <span className="project-card-date">{upcomingSession[0].appointment_time}</span>
-                        </span>
-                    </span>
+                <button className='upcoming-sesson' type="button" onClick={() => setIsDetailsOpen(true)}>
+                    <span className="upcoming-icon"><CalendarDays size={24} aria-hidden="true" /></span>
+                    <span className="upcoming-copy"><span className="eyebrow">Next appointment</span><strong>{upcomingSession[0].project_title}</strong><span>{upcomingSession[0].first_name} {upcomingSession[0].last_name}</span></span>
+                    <span className="upcoming-date"><strong>{new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${upcomingSession[0].appointment_date}T12:00:00Z`))}</strong><span>{upcomingSession[0].appointment_time?.slice(0, 5)}</span></span>
+                    <ArrowUpRight className="upcoming-arrow" size={22} aria-hidden="true" />
                 </button>
                 {isDetailsOpen && (
                     // Reuse the project modal so the summary card opens the same detail view.
                     <ProjectDetails
+                        onProjectChanged={onProjectChanged}
                         projectId={upcomingSession[0].project_id}
                         onClose={() => setIsDetailsOpen(false)}
                     />
@@ -58,9 +58,9 @@ export default function UpcomingSession() {
         );
     } else {
         return (
-            <div className='upcoming-sesson'>
-                <h3>Upcoming Session</h3>
-                <p>Not Scheduled</p>
+            <div className='upcoming-sesson upcoming-sesson--empty'>
+                <span className="upcoming-icon"><CalendarDays size={24} aria-hidden="true" /></span>
+                <span className="upcoming-copy"><span className="eyebrow">Next appointment</span><strong>Nothing on the calendar</strong><span>Scheduled sessions will appear here.</span></span>
             </div>
         );
     }

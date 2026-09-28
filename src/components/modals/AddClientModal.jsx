@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { UserPlus, X } from 'lucide-react';
 import supabase from '../../lib/supabaseClient.js';
+import { normalizePhone } from '../../lib/projectRules.js';
 
 export function AddClientModal({ onClose }) {
   // These local values make the form controlled: each input updates React state.
@@ -26,7 +27,7 @@ export function AddClientModal({ onClose }) {
     const { data: existingClients, error: lookupError } = await supabase
       .from('Client')
       .select('id, first_name, last_name')
-      .eq('phone', phone);
+      .eq('phone', normalizePhone(phone));
 
     if (lookupError) {
       setFormError('Could not check existing clients. Please try again.');
@@ -45,14 +46,14 @@ export function AddClientModal({ onClose }) {
       .from('Client')
       .insert([
         {
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          phone: normalizePhone(phone),
           instagram: instagram,
           origin: origin,
           london_based: isLondonBased,
           email: email,
-          dob: dob
+          dob: dob || null
         },
       ])
       .select();
@@ -98,11 +99,11 @@ export function AddClientModal({ onClose }) {
               </div>
               <div className="form-field">
                 <label htmlFor="email">Email</label>
-                <input type="email" name="email" id="email" onChange={event => setEmail(event.target.value)} placeholder="email@address.com" />
+                <input type="email" name="email" id="email" onChange={event => setEmail(event.target.value)} placeholder="client@example.com" />
               </div>
               <div className="form-field form-field--full">
                 <label htmlFor="instagram">Instagram</label>
-                <input type="url" name="instagram" id="instagram" onChange={event => setInstagram(event.target.value)} placeholder="https://www.instagram.com/zalman.tattoo/" />
+                <input type="url" name="instagram" id="instagram" onChange={event => setInstagram(event.target.value)} placeholder="https://www.instagram.com/username/" />
               </div>
             </div>
           </section>
@@ -142,13 +143,13 @@ export function AddClientModal({ onClose }) {
   );
 }
 
-function DoesClientAlreadyExist({ onClose, firstName, lastName }) {
+function DoesClientAlreadyExist({ onClose }) {
   return (
     <div className="toast">
       <button className="toast-close" type="button" onClick={onClose} aria-label="Dismiss message" title="Dismiss message">
         <X size={16} aria-hidden="true" />
       </button>
-      <p className="toast-message">A client named {firstName} {lastName} already has this phone number.</p>
+      <p className="toast-message">A client already has this phone number. Use their existing record.</p>
     </div >
   );
 }

@@ -3,71 +3,38 @@ import supabase from '../lib/supabaseClient.js';
 import { AuthContext } from './AuthContext.js';
 
 export function AuthProvider({ children }) {
-  // `undefined` means the stored session has not been checked yet.
   const [session, setSession] = useState(undefined);
+  const [authError, setAuthError] = useState('');
 
-  const signUpUser = async (email, password) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.log(error);
-      return { success: false, error };
-    }
-
-    return { success: true, error };
-  };
-
-  const signInUser = async (email, password) => {
+  async function signInUser(email, password) {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.log(error);
-        return { success: false, error: error.message };
-      }
-
-      console.log('Sign-In Success: ', data);
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { success: false, error: error.message };
       return { success: true, data };
-    } catch (error) {
-      console.log(error);
-    }
-  };
+    } catch { return { success: false, error: 'Could not connect. Check your connection and try again.' }; }
+  }
 
   useEffect(() => {
-    // Read the initial session once, then keep it synchronized with future auth events.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    let active = true;
+    let receivedEvent = false;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      receivedEvent = true;
+      if (active) { setSession(nextSession); setAuthError(''); }
     });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active || receivedEvent) return;
+      if (error) throw error;
+      setSession(data.session);
+    }).catch(() => {
+      if (active) { setSession(null); setAuthError('Could not restore your session. Please sign in again.'); }
     });
-
-    // Avoid keeping a stale auth listener after the provider unmounts.
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+    return () => { active = false; listener.subscription.unsubscribe(); };
   }, []);
 
-  const signOutUser = async () => {
-    // supabase.auth.signOut() clears the local session and invalidates it
-    // server-side. Returns a Promise resolving to { error }.
+  async function signOutUser() {
     const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  }
 
-    if (error) {
-      console.log(error);
-    }
-  };
-
-  return (
-    <AuthContext.Provider value={{ session, signUpUser, signInUser, signOutUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ session, authError, signInUser, signOutUser }}>{children}</AuthContext.Provider>;
 }

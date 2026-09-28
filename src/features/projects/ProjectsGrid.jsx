@@ -1,446 +1,446 @@
-import { useEffect, useEffectEvent, useMemo, useState } from 'react';
-import { ArrowUpDown, CalendarPlus, Check, CircleCheck, FolderKanban, LoaderCircle, Pencil, SearchCheck, SlidersHorizontal, X } from 'lucide-react';
+import { cloneElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ArrowUpDown, CalendarPlus, Check, ChevronDown, CircleCheck, FolderKanban, LoaderCircle, Pencil, Plus, Search, SearchCheck, Trash2, UserPlus, X } from 'lucide-react';
+import { FaInstagram, FaWhatsapp } from 'react-icons/fa';
+import { AddClientModal } from '../../components/modals/AddClientModal';
+import { CreateProjectModal } from '../../components/modals/CreateProjectModal';
 import ScheduleSession from '../../components/modals/ScheduleSession';
 import supabase from '../../lib/supabaseClient';
 import UpcomingSession from './UpcomingSession';
-import { FaInstagram, FaWhatsapp } from 'react-icons/fa';
+import PrivatePhoto from '../../components/PrivatePhoto.jsx';
+import { PHOTO_BUCKET, uploadPhotos, removePhotos } from '../../lib/photos.js';
+import { PROJECT_STATUSES, SESSION_STATUSES, validateProject, validateSession, normalizePhone, isSessionOverdue, sessionNeedsReview, projectStatusLabel, sessionStatusLabel } from '../../lib/projectRules.js';
+import { notifyCalendarChanged } from '../../lib/googleCalendar.js';
 
-export default function ProjectsGrid() {
-  // `null` represents the loading state; an empty array would mean "loaded, but no projects".
+const statusClassNames = {
+  'In Progress': 'status-pill--in-progress',
+  'In Review': 'status-pill--in-review',
+  Completed: 'status-pill--completed',
+};
+
+function messageFor(error, fallback) {
+  return error?.message ? `${fallback} ${error.message}` : fallback;
+}
+
+export default function ProjectsGrid({ onProjectCreated }) {
   const [projectSummaries, setProjectSummaries] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [sortBy, setSortBy] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [search, setSearch] = useState('');
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
-  useEffect(() => {
-    // This relationship select fetches each project together with its client and status labels.
-    async function fetchProjectSummaries() {
-      const { data, error } = await supabase
-        .from('Project')
-        .select(`
-          id,
-          project_title,
-          date_start,
-          target_end_date,
-          client_id,
-          Status (
-            status
-          ),
-          Client (
-            first_name,
-            last_name,
-            instagram,
-            phone
-          ) 
-        `);
+  const refreshProjects = useCallback(async () => {
+    setLoadError('');
+    const { data, error } = await supabase
+      .from('Project')
+      .select(`id, project_title, date_start, target_end_date, status_id, Client (first_name, last_name, instagram, phone), Status (status)`);
 
-      if (error) {
-        console.log(error);
-        return;
-      }
-
-      setProjectSummaries(data);
+    if (error) {
+      setLoadError(messageFor(error, 'Could not load projects.'));
+      setProjectSummaries([]);
+      return;
     }
-
-    fetchProjectSummaries();
+    setProjectSummaries(data ?? []);
+    setRevision((value) => value + 1);
   }, []);
 
-  // Sorting is derived data: preserve the fetched array and create a sorted copy for display.
+  useEffect(() => {
+    const load = window.setTimeout(refreshProjects, 0);
+    return () => window.clearTimeout(load);
+  }, [refreshProjects]);
+
   const sortedProjectSummaries = useMemo(() => {
     if (!projectSummaries) {
       return null;
     }
 
-    // Array.sort mutates its array, so copy state before sorting it.
-    const summaries = [...projectSummaries];
+    const query = search.trim().toLowerCase();
+    const summaries = projectSummaries.filter((project) => `${project.project_title} ${project.Client?.first_name ?? ''} ${project.Client?.last_name ?? ''}`.toLowerCase().includes(query));
 
     if (sortBy === 'date-new-first') {
-      return summaries.sort((a, b) => (b.date_start ?? '').localeCompare(a.date_start ?? ''));
-    }
-
-    if (sortBy === 'date-old-first') {
-      return summaries.sort((a, b) => (a.date_start ?? '').localeCompare(b.date_start ?? ''));
-    }
-
-    // Lower rank values appear first. Selecting a different sort option selects a new ranking.
-    const projectStatus = {
-      'in-progress': { 'In Progress': 0, 'In Review': 1, 'Completed': 2 },
-      'in-review': { 'In Review': 0, 'In Progress': 1, 'Completed': 2 },
-      'completed': { 'Completed': 0, 'In Review': 1, 'In Progress': 2 },
-    }[sortBy];
-
-    if (projectStatus) {
-      return summaries.sort(
-        (a, b) => (projectStatus[a.Status.status] ?? Number.MAX_SAFE_INTEGER)
-          - (projectStatus[b.Status.status] ?? Number.MAX_SAFE_INTEGER),
+      return summaries.sort((a, b) =>
+        (b.date_start ?? '').localeCompare(a.date_start ?? ''),
       );
     }
 
-    return summaries;
-  }, [projectSummaries, sortBy]);
+    if (sortBy === 'date-old-first') {
+      return summaries.sort((a, b) =>
+        (a.date_start ?? '').localeCompare(b.date_start ?? ''),
+      );
+    }
 
-  const isLoading = sortedProjectSummaries === null;
+    const ranks = {
+      'in-progress': { 'In Progress': 0, 'In Review': 1, Completed: 2 },
+      'in-review': { 'In Review': 0, 'In Progress': 1, Completed: 2 },
+      completed: { Completed: 0, 'In Review': 1, 'In Progress': 2 },
+    }[sortBy];
+    if (!ranks) {
+      return summaries;
+    }
+
+    return summaries.sort(
+      (a, b) =>
+        (ranks[a.Status?.status] ?? Number.MAX_SAFE_INTEGER) -
+        (ranks[b.Status?.status] ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [projectSummaries, sortBy, search]);
 
   return (
     <section className="dashboard-section">
       <DashboardHeader
-        recordCount={projectSummaries?.length}
-        isLoading={isLoading}
-        sortBy={setSortBy}
-        sortByValue={sortBy}
         projectSummaries={projectSummaries}
+        onAddClient={() => setIsClientModalOpen(true)}
+        onCreateProject={() => setIsProjectModalOpen(true)}
       />
-
-      <UpcomingSession />
-
+      {loadError && (
+        <p className="form-error" role="alert">
+          {loadError}
+        </p>
+      )}
+      <div className="dashboard-highlight">
+        <UpcomingSession revision={revision} onProjectChanged={refreshProjects} />
+      </div>
+      <SessionsToReview revision={revision} onProjectChanged={refreshProjects} />
+      <div className="project-list-header">
+        <div><p className="eyebrow">Workspace</p><h2>All projects</h2></div>
+        <div className="project-tools">
+          <label className="project-search"><Search size={18} aria-hidden="true" /><span className="visually-hidden">Search projects or clients</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search projects or clients" /></label>
+          <label className="sort-control"><ArrowUpDown size={17} aria-hidden="true" /><span className="visually-hidden">Sort projects</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value)}><option value="">Default</option><option value="date-new-first">Newest</option><option value="date-old-first">Oldest</option><option value="in-progress">In progress</option><option value="in-review">Client review</option><option value="completed">Completed</option></select></label>
+        </div>
+      </div>
       <div className="cards-grid">
-        {isLoading
-          ? Array.from({ length: 3 }, (_, index) => (
-            <div className="project-card project-card-loading" key={index} />
-          ))
-          : sortedProjectSummaries.map((project) => (
-            <ProjectCard
-              key={project.id}
-              clientName={`${project.Client.first_name} ${project.Client.last_name}`}
-              projectId={project.id}
-              projectTitle={project.project_title}
-              status={project.Status.status}
-              instagram={project.Client?.instagram}
-              phone={project.Client?.phone}
+        {sortedProjectSummaries === null &&
+          Array.from({ length: 3 }, (_, index) => (
+            <div
+              className="project-card project-card-loading"
+              key={index}
             />
           ))}
+        {sortedProjectSummaries?.length === 0 && (
+          <EmptyState text={search ? "No projects match your search." : "No projects yet. Add a client, then create their first project."} />
+        )}
+        {sortedProjectSummaries?.map((project) => (
+          <ProjectCard key={project.id} revision={revision} project={project} onProjectChanged={refreshProjects} />
+        ))}
       </div>
+      {isClientModalOpen && <AddClientModal onClose={() => setIsClientModalOpen(false)} />}
+      {isProjectModalOpen && (
+        <CreateProjectModal
+          onClose={() => setIsProjectModalOpen(false)}
+          onCreated={() => {
+            setIsProjectModalOpen(false);
+            refreshProjects();
+            onProjectCreated?.();
+          }}
+        />
+      )}
     </section>
   );
 }
 
-function DashboardHeader({ recordCount, isLoading, sortBy, sortByValue, projectSummaries }) {
+function DashboardHeader({ projectSummaries, onAddClient, onCreateProject }) {
+  const counts = useMemo(
+    () =>
+      (projectSummaries ?? []).reduce(
+        (result, project) => {
+          const status = project.Status?.status;
 
-  const projectStatus = {
-    'In Progress': 0,
-    'In Review': 0,
-    'Completed': 0,
-  };
+          if (Object.hasOwn(result, status)) {
+            result[status] += 1;
+          }
 
-  if (projectSummaries) {
-    const eachStatusCount = useMemo(() => {
-      projectSummaries.map((project) => {
-        projectStatus[project.Status.status] += 1;
-      })
-    }, [projectSummaries]);
-  }
-
-  // {isLoading ? 'Loading projects...' : `${recordCount} active records | ${projectStatus['In Progress']} In Progress | ${projectStatus['In Review']} In Review | ${projectStatus['Completed']} Completed `}
+          return result;
+        },
+        { 'In Progress': 0, 'In Review': 0, Completed: 0 },
+      ),
+    [projectSummaries],
+  );
 
   return (
     <div className="dashboard-heading">
       <div className="dashboard-title-group">
-        <p className="eyebrow">Studio workspace</p>
-        <h1>Projects</h1>
-        {projectSummaries && <p className="dashboard-meta">
-          {isLoading ? 'Loading projects...' :
-            <>
-              <span className='project-card-topline'>
-                <span className="status-count">
-                  <FolderKanban size={15} aria-hidden="true" />
-                  {`${recordCount} active records:`}
-                </span>
-                <span className="status-count status-count--in-progress">
-                  <LoaderCircle size={15} aria-hidden="true" />
-                  {projectStatus['In Progress']} In Progress
-                </span>
-                <span className="status-count status-count--in-review">
-                  <SearchCheck size={15} aria-hidden="true" />
-                  {projectStatus['In Review']} In Review
-                </span>
-                <span className="status-count status-count--completed">
-                  <CircleCheck size={15} aria-hidden="true" />
-                  {projectStatus['Completed']} Completed
-                </span>
+        <p className="eyebrow">Studio overview</p>
+        <h1>Good to see you.</h1>
+        {projectSummaries && (
+          <p className="dashboard-meta">
+            <span className="project-card-topline">
+              <span className="status-count">
+                <FolderKanban size={15} aria-hidden="true" />
+                {projectSummaries.length} projects
               </span>
-            </>}
-        </p>}
+              <span className="status-count status-count--in-progress">
+                <LoaderCircle size={15} aria-hidden="true" />
+                {counts['In Progress']} In Progress
+              </span>
+              <span className="status-count status-count--in-review">
+                <SearchCheck size={15} aria-hidden="true" />
+                {counts['In Review']} Client review
+              </span>
+              <span className="status-count status-count--completed">
+                <CircleCheck size={15} aria-hidden="true" />
+                {counts.Completed} Completed
+              </span>
+            </span>
+          </p>
+        )}
       </div>
       <div className="grid-actions">
-        <label className="sort-control">
-          <ArrowUpDown size={16} aria-hidden="true" />
-          <span>Sort by</span>
-          {/* The setter is passed from the parent; changing it recomputes the memoized display list. */}
-          <select name="sort-options" id="sort-options" value={sortByValue} onChange={(e) => sortBy(e.target.value)}>
-            <option value="">Default order</option>
-            <option value="date-new-first">Project Date: New First</option>
-            <option value="date-old-first">Project Date: Old First</option>
-            <option value="in-progress">Status: In Progress</option>
-            <option value="in-review">Status: In Review</option>
-            <option value="completed">Status: Completed</option>
-          </select>
-        </label>
-        <button className="button button-ghost">
-          <SlidersHorizontal size={16} aria-hidden="true" />
-          Filter
+        <button className="button button-secondary" type="button" onClick={onAddClient}>
+          <UserPlus size={16} aria-hidden="true" />
+          Add Client
+        </button>
+        <button
+          className="button button-primary"
+          type="button"
+          onClick={onCreateProject}
+        >
+          <Plus size={16} aria-hidden="true" />
+          Create Project
         </button>
       </div>
     </div>
   );
 }
 
-function ProjectCard({ clientName, projectId, projectTitle, status, instagram, phone }) {
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [photos, setPhotos] = useState(NaN);
-  const statusClassName = {
-    'In Progress': 'status-pill--in-progress',
-    'In Review': 'status-pill--in-review',
-    'Completed': 'status-pill--completed',
-  }[status] ?? 'status-pill--default';
-
-
-  const [upcomingSession, setUpcomingSession] = useState('Not Scheduled');
+function SessionsToReview({ revision, onProjectChanged }) {
+  const [sessions, setSessions] = useState([]);
+  const [error, setError] = useState('');
+  const [now, setNow] = useState(() => new Date());
+  const [showAll, setShowAll] = useState(false);
+  const [openedSession, setOpenedSession] = useState(null);
 
   useEffect(() => {
-    // Each card independently asks the database for this project's nearest future session.
-    const fetchUpcomingSession = async () => {
-      try {
-        const { data, error } = await supabase
-          .rpc('fetch_upcoming_session', { p_project_id: projectId, });
+    let active = true;
+    supabase.from('Session')
+      .select('id, project_id, appointment_date, appointment_time, Status(status), Project(project_title, Client(first_name, last_name))')
+      .then(({ data, error: queryError }) => {
+        if (!active) return;
+        if (queryError) { setError('Could not check sessions needing review.'); return; }
+        setError('');
+        setSessions(data ?? []);
+        setNow(new Date());
+      });
+    return () => { active = false; };
+  }, [revision]);
 
-        if (data && data.length > 0) {
-          console.log(data);
-          setUpcomingSession(data);
-        }
-        else {
-          console.log(error);
-        }
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-      } catch (error) {
-        console.log(error);
-      }
+  const due = sessions.filter((session) => sessionNeedsReview(session, now))
+    .sort((a, b) => `${b.appointment_date}T${b.appointment_time}`.localeCompare(`${a.appointment_date}T${a.appointment_time}`));
 
+  if (error) return <p className="form-error dashboard-review-error" role="alert">{error}</p>;
+  if (!due.length) return null;
+
+  return <section className="sessions-to-review" aria-labelledby="sessions-to-review-title">
+    <div className="review-heading"><div className="review-heading-title"><AlertCircle size={20} aria-hidden="true" /><div><h2 id="sessions-to-review-title">Sessions to review <span>{due.length}</span></h2><p>Resolve past appointments and old session statuses.</p></div></div>{due.length > 3 && <button type="button" className="review-toggle" onClick={() => setShowAll((value) => !value)}>{showAll ? 'Show fewer' : `Show all ${due.length}`}</button>}</div>
+    <div className="review-list">{(showAll ? due : due.slice(0, 3)).map((session) => <button className="review-item" key={session.id} type="button" onClick={() => setOpenedSession(session)}><span><strong>{session.Project?.project_title ?? 'Project'}</strong><small>{session.Project?.Client?.first_name} {session.Project?.Client?.last_name}</small></span><span className="review-item-date">{session.appointment_date} · {session.appointment_time?.slice(0, 5)}</span><span className="review-item-status">{session.Status?.status === 'Expired' ? 'Expired' : session.Status?.status === 'In Review' ? sessionStatusLabel('In Review') : 'Overdue'}</span></button>)}</div>
+    {openedSession && <ProjectDetails key={openedSession.id} projectId={openedSession.project_id} initialSessionId={openedSession.id} onClose={() => setOpenedSession(null)} onProjectChanged={onProjectChanged} />}
+  </section>;
+}
+
+function ProjectCard({ project, onProjectChanged, revision }) {
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [upcomingSession, setUpcomingSession] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  useEffect(() => {
+    async function fetchCardData() {
+      const [{ data: upcoming }, { data: sessions }] = await Promise.all([
+        supabase.rpc('studio_upcoming_session', { p_project_id: project.id }),
+        supabase.from('Session').select('img_urls, appointment_date, appointment_time').eq('project_id', project.id).order('appointment_date', { ascending: false }).order('appointment_time', { ascending: false }).limit(1),
+      ]);
+      setUpcomingSession(Array.isArray(upcoming) ? upcoming[0] ?? null : upcoming ?? null);
+      setPreviewUrl(sessions?.[0]?.img_urls?.at(-1) ?? null);
     }
+    fetchCardData();
+  }, [project.id, revision]);
 
-    fetchUpcomingSession();
-
-    const fetchPhotos = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('Session')
-          .select('img_urls')
-          .eq('project_id', projectId);
-
-        if (error) {
-          console.log(`Data: ${data}`);
-          return;
-        }
-
-        console.log(`Data ${data}`);
-        setPhotos(data);
-
-      } catch (error) {
-        console.log(error);
-      }
-    };
-
-    fetchPhotos();
-
-  }, [projectId]);
+  const client = project.Client ?? {};
+  const clientName =
+    [client.first_name, client.last_name].filter(Boolean).join(' ') ||
+    'Client unavailable';
 
   return (
     <>
-      <button className="project-card" onClick={() => setIsDetailsOpen(true)}>
+      <div className="project-card" role="button" tabIndex={0} onClick={() => setIsDetailsOpen(true)} onKeyDown={(event) => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) { event.preventDefault(); setIsDetailsOpen(true); } }}>
         <span className="project-preview">
           <span className="project-card-topline">
             <span className="project-card-kicker">Project</span>
-            <span className={`status-pill ${statusClassName}`}>{status}</span>
+            <span
+              className={`status-pill ${statusClassNames[project.Status?.status] ?? 'status-pill--default'
+                }`}
+            >
+              {projectStatusLabel(project.Status?.status) ?? 'Unknown'}
+            </span>
           </span>
-          <strong>{projectTitle}</strong>
-
-          <span className='project-photos-gallery' onClick={(e) => {
-            e.stopPropagation();
-
-          }}>
-            {photos && photos[photos.length - 1]['img_urls'].length > 0 &&
-
-              <img className='project-photo' src={photos[photos.length - 1]['img_urls'][0]} alt={'Photo'} width={200} height={150} />
-
-              ||
-
-              <img className='project-photo' src={'https://picsum.photos/800/600'} alt={'Placeholder'} width={200} height={150} />
-
-            }
-          </span>
-
+          <strong>{project.project_title}</strong>
+          {previewUrl && <span className="project-photos-gallery">
+              <PrivatePhoto
+                className="project-photo"
+                path={previewUrl}
+                alt="Latest session work"
+                width={200}
+                height={150}
+              />
+          </span>}
           <span className="project-client">
             {clientName}
             <span className="project-contact-actions">
-              <a className="project-contact-link" href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label={`Open WhatsApp chat with ${clientName}`} title="WhatsApp">
-                <FaWhatsapp aria-hidden="true" />
-              </a>
-              <a className="project-contact-link" href={instagram} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label={`Open ${clientName}'s Instagram`} title="Instagram">
-                <FaInstagram aria-hidden="true" />
-              </a>
+              {client.phone && (
+                <a
+                  className="project-contact-link"
+                  href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label={`Open WhatsApp chat with ${clientName}`}
+                >
+                  <FaWhatsapp aria-hidden="true" />
+                </a>
+              )}
+              {client.instagram && (
+                <a
+                  className="project-contact-link"
+                  href={client.instagram}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label={`Open ${clientName}'s Instagram`}
+                >
+                  <FaInstagram aria-hidden="true" />
+                </a>
+              )}
             </span>
           </span>
           <span className="project-card-footer">
-            <span className="project-card-meta">Upcoming Session</span>
-            <span className="project-card-date">{upcomingSession}</span>
+            <span className="project-card-meta">Next session</span>
+            <span className="project-card-date">
+              {upcomingSession
+                ? `${upcomingSession.appointment_date} ${upcomingSession.appointment_time ?? ''}`
+                : 'Not scheduled'}
+            </span>
           </span>
         </span>
-      </button>
+      </div>
       {isDetailsOpen && (
         <ProjectDetails
-          projectId={projectId}
+          projectId={project.id}
           onClose={() => setIsDetailsOpen(false)}
+          onProjectChanged={onProjectChanged}
         />
       )}
     </>
   );
 }
 
-export function ProjectDetails({ onClose, projectId }) {
-  const [projects, setProjects] = useState(null);
+export function ProjectDetails({ onClose, projectId, onProjectChanged, initialSessionId }) {
+  const [project, setProject] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [selectedSession, setSelectedSession] = useState(null);
-  const [isNewSessionFormOpen, setIsNewSessionFormOpen] = useState(false);
-  const [projectIdForNewSession, setProjectIdForNewSession] = useState(null);
-  // Incrementing this key remounts SessionGrid after a session is created or edited.
+  const [isScheduling, setIsScheduling] = useState(false);
   const [sessionsVersion, setSessionsVersion] = useState(0);
 
-  useEffect(() => {
-    async function fetchProjectDetails() {
-      const { data, error } = await supabase
-        .from('Project')
-        .select(`
-          id,
-          project_title,
-          placement,
-          size,
-          style,
-          reference,
-          design_notes,
-          cartridge_brand,
-          needle_config,
-          date_start,
-          target_end_date,
-          agreed_price,
-          deposit_amount,
-          deposit_received,
-          client_feedback,
-          artist_notes,
-          Status (
-            status
-          ),
-          Client (
-            first_name,
-            last_name
-          )
-        `)
-        .eq('id', projectId);
+  const refreshProject = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('Project')
+      .select(
+        'id, project_title, client_id, status_id, placement, size, style, reference, design_notes, cartridge_brand, needle_config, date_start, target_end_date, agreed_price, deposit_amount, deposit_received, client_feedback, artist_notes, Status (id, status), Client (first_name, last_name, phone, email, instagram)',
+      )
+      .eq('id', projectId)
+      .single();
 
-      if (error) {
-        console.log(error);
-        return;
-      }
-
-      setProjects(data);
+    if (error) {
+      setLoadError(messageFor(error, 'Could not load this project.'));
+      return;
     }
 
-    fetchProjectDetails();
+    setProject(data);
   }, [projectId]);
 
-  function openNewSessionForm(projectId) {
-    // Keep the ID here so ScheduleSession knows which project to attach the row to.
-    setProjectIdForNewSession(projectId);
-    setIsNewSessionFormOpen(true);
-  }
+  useEffect(() => {
+    const load = window.setTimeout(refreshProject, 0);
+    return () => window.clearTimeout(load);
+  }, [refreshProject]);
+  const refreshSessions = () => {
+    setSelectedSession(null);
+    setSessionsVersion((version) => version + 1);
+    onProjectChanged?.();
+  };
 
-  if (isNewSessionFormOpen) {
+  if (isScheduling) {
     return (
       <ScheduleSession
-        onClose={() => setIsNewSessionFormOpen(false)}
+        projectId={projectId}
+        onClose={() => setIsScheduling(false)}
         onScheduled={() => {
-          setSessionsVersion((version) => version + 1);
-          setIsNewSessionFormOpen(false);
+          setIsScheduling(false);
+          refreshSessions();
+          notifyCalendarChanged();
         }}
-        projectId={projectIdForNewSession}
       />
     );
   }
 
-  return (
-    <div id="project-details-modal" className="modal">
-      <div className="modal-content project-details-modal-content">
-        <button className="close" type="button" onClick={onClose} aria-label="Close" title="Close">
-          <X size={18} aria-hidden="true" />
-        </button>
-        {projects?.map((project) => (
-          <div className="project-details" key={project.id}>
-            <div className="project-details-header">
-              <span className="project-card-kicker">Project</span>
-              <h2>{project.project_title}</h2>
-            </div>
-
-            <div className="project-detail-sections">
-              <section className="details-section sessions-section">
-                <div className="details-section-heading">
-                  <div>
-                    <span className="project-card-kicker">Sessions</span>
-                    <h3>Session History</h3>
-                  </div>
-                  <button
-                    className="button button-secondary"
-                    onClick={() => openNewSessionForm(project.id)}
-                  >
-                    <CalendarPlus size={16} aria-hidden="true" />
-                    Schedule Session
-                  </button>
-                </div>
-                <SessionGrid
-                  key={sessionsVersion}
-                  onSelectSession={setSelectedSession}
-                  projectId={project.id}
-                />
-                {selectedSession && (
-                  <SessionDetails
-                    key={selectedSession.id}
-                    session={selectedSession}
-                    projectId={projectId}
-                    onUpdated={(updatedSession) => {
-                      setSelectedSession(updatedSession);
-                      setSessionsVersion((version) => version + 1);
-                    }}
-                  />
-                )}
-              </section>
-
-              <ProjectInfo project={project} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <div id="project-details-modal" className="modal"><div className="modal-content project-details-modal-content">
+    <button className="close" type="button" onClick={onClose} aria-label="Close"><X size={18} aria-hidden="true" /></button>
+    {loadError && <p className="form-error" role="alert">{loadError}</p>}
+    {!project && !loadError && <p>Loading project…</p>}
+    {project && <div className="project-details"><div className="project-details-header"><span className="project-card-kicker">Project workspace</span><h2>{project.project_title}</h2><p>{project.Client?.first_name} {project.Client?.last_name} <span aria-hidden="true">·</span> {projectStatusLabel(project.Status?.status)}</p></div>
+      <div className="project-detail-sections"><section className="details-section sessions-section"><div className="details-section-heading"><div><span className="project-card-kicker">Sessions</span><h3>Session History</h3></div><button className="button button-secondary" type="button" onClick={() => setIsScheduling(true)}><CalendarPlus size={16} aria-hidden="true" />Schedule Session</button></div>
+        <SessionGrid key={sessionsVersion} projectId={project.id} initialSessionId={initialSessionId} onSelectSession={setSelectedSession} />
+        {selectedSession && <SessionDetails key={selectedSession.id} session={selectedSession} projectId={project.id} onUpdated={(session) => { setSelectedSession(session); setSessionsVersion((version) => version + 1); onProjectChanged?.(); }} onDeleted={refreshSessions} />}
+      </section><details className="detail-disclosure"><summary><span>Project details <small>Design, pricing and notes</small></span><ChevronDown size={20} aria-hidden="true" /></summary><ProjectInfo project={project} onUpdated={(updated) => { setProject(updated); onProjectChanged?.(); }} onDeleted={() => { onProjectChanged?.(); onClose(); }} /></details><details className="detail-disclosure"><summary><span>Client details <small>Contact information</small></span><ChevronDown size={20} aria-hidden="true" /></summary><ClientInfo client={project.Client} clientId={project.client_id} onUpdated={(client) => { setProject((current) => ({ ...current, Client: client })); onProjectChanged?.(); }} /></details></div>
+    </div>}
+  </div></div>;
 }
 
-function SessionGrid({ onSelectSession, projectId }) {
+function SessionGrid({ projectId, initialSessionId, onSelectSession }) {
   const [sessions, setSessions] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // This query runs whenever a different project is opened.
     async function fetchSessions() {
-      const { data, error } = await supabase
+      const { data, error: queryError } = await supabase
         .from('Session')
-        .select('*')
-        .eq('project_id', projectId);
+        .select('*, Status (id, status)')
+        .eq('project_id', projectId)
+        .order('appointment_date', { ascending: false })
+        .order('appointment_time', { ascending: false });
 
-      if (error) {
-        console.log(error);
+      if (queryError) {
+        setError(messageFor(queryError, 'Could not load session history.'));
+        setSessions([]);
         return;
       }
 
-      setSessions(data);
+      setSessions(data ?? []);
+      if (initialSessionId) {
+        const initial = data?.find((session) => session.id === initialSessionId);
+        if (initial) onSelectSession(initial);
+      }
     }
 
     fetchSessions();
-  }, [projectId]);
+  }, [projectId, initialSessionId, onSelectSession]);
 
   if (!sessions) {
-    return <div className="session-timeline" />;
+    return <div className="session-timeline">Loading sessions…</div>;
+  }
+
+  if (error) {
+    return (
+      <p className="form-error" role="alert">
+        {error}
+      </p>
+    );
+  }
+
+  if (!sessions.length) {
+    return <EmptyState text="No sessions have been scheduled for this project." />;
   }
 
   return (
@@ -448,508 +448,211 @@ function SessionGrid({ onSelectSession, projectId }) {
       {sessions.map((session) => (
         <SessionCard
           key={session.id}
-          onClick={() => onSelectSession(session)}
           session={session}
+          onClick={() => onSelectSession(session)}
         />
       ))}
     </div>
   );
 }
 
-function SessionCard({ onClick, session }) {
-  // Split the ISO date for the compact timeline badge without changing the stored value.
-  const [year, month, day] = session.appointment_date?.split('-') ?? [];
-  const [hours, minutes] = (session.appointment_time?.split(':') ?? []);
-  const monthLabel = month
-    ? new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date(`${year}-${month}-15T12:00:00`)).toUpperCase()
-    : 'TBC';
-  const hasUpcomingStatus = session.status_id === 4;
-
-  const [sessionStatus, setSessionStatus] = useState('Upcoming');
-  console.log(`TEST TEST ${parseInt(year)} ${parseInt(month)} ${day}`);
-
-  useEffect(() => {
-    const determineSessionStatus = () => {
-      const today = new Date();
-
-      const todayObject = {
-        'year': today.getFullYear(),
-        'month': today.getMonth(),
-        'day': today.getDay(),
-        'hours': today.getHours(),
-        'minutes': today.getMinutes(),
-      };
-
-      if (todayObject['year'] > parseInt(year)
-        || (todayObject['year'] === parseInt(year) && todayObject['month'] > parseInt(month))
-        || (todayObject['year'] === parseInt(year) && todayObject['month'] === parseInt(month) && todayObject['day'] > parseInt(today))
-        || (todayObject['year'] === parseInt(year) && todayObject['month'] === parseInt(month) && todayObject['day'] === parseInt(today) && todayObject['hours'] > hours)
-        || (todayObject['year'] === parseInt(year) && todayObject['month'] === parseInt(month) && todayObject['day'] === parseInt(today) && todayObject['hours'] === hours && todayObject['minutes'] === minutes)) {
-        setSessionStatus('Recorded')
-      }
-      else {
-        console.log('Nikita sucks!');
-      }
-
-    }
-    determineSessionStatus();
-  }, [sessionStatus]);
-
-  return (
-    <button className="session-timeline-card" onClick={onClick}>
-      <span className="session-timeline-marker" aria-hidden="true" />
-      <span className="session-date-badge">
-        <strong>{day ?? '--'}</strong>
-        <small>{monthLabel}</small>
-      </span>
-      <span className="session-summary">
-        <span className="session-summary-topline">
-          <strong>{session.appointment_time || 'Time not set'}</strong>
-          <span>{session.duration || 'Duration not set'}</span>
-          <span className={`session-status ${hasUpcomingStatus ? 'session-status--upcoming' : ''}`}>
-            {sessionStatus === 'Upcoming' ? 'Upcoming' : 'Recorded'}
-          </span>
-          {session.amount_paid && <span className="session-payment">£{session.amount_paid}</span>}
-        </span>
-        <span className="session-summary-notes">{session.session_notes || 'No session notes added yet.'}</span>
-      </span>
-    </button>
-  );
+function SessionCard({ session, onClick }) {
+  const [, month, day] = session.appointment_date?.split('-') ?? [];
+  const monthLabel = month ? new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date(`2000-${month}-15T12:00:00`)).toUpperCase() : 'TBC';
+  const label = isSessionOverdue(session) ? 'Overdue' : sessionStatusLabel(session.Status?.status) ?? `Status #${session.status_id}`;
+  return <button className="session-timeline-card" type="button" onClick={onClick}><span className="session-timeline-marker" aria-hidden="true" /><span className="session-date-badge"><strong>{day ?? '--'}</strong><small>{monthLabel}</small></span><span className="session-summary"><span className="session-summary-topline"><strong>{session.appointment_time || 'Time not set'}</strong><span>{session.duration || 'Duration not set'}</span><span className={`session-status ${label === 'Upcoming' ? 'session-status--upcoming' : ''} ${label === 'Overdue' || label === 'Expired' ? 'session-status--overdue' : ''}`}>{label}</span>{session.amount_paid != null && <span className="session-payment">£{session.amount_paid}</span>}</span><span className="session-summary-notes">{session.session_notes || 'No session notes added yet.'}</span></span></button>;
 }
 
-function SessionDetails({ onUpdated, session, projectId }) {
-  // Editing uses local copies so Cancel/Edit mode never mutates the selected session object directly.
-  const [editSessionDetails, setSessionDetails] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState(null);
+function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [statuses, setStatuses] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [form, setForm] = useState({
+    appointment_date: session.appointment_date ?? '',
+    appointment_time: session.appointment_time ?? '',
+    status_id: String(session.status_id ?? ''),
+    duration: session.duration ?? '',
+    amount_paid: session.amount_paid ?? '',
+    session_notes: session.session_notes ?? '',
+    img_urls: session.img_urls ?? [],
+  });
+  const currentStatus = session.Status?.status;
+  const legacyStatus = currentStatus && !SESSION_STATUSES.includes(currentStatus);
+  const overdue = isSessionOverdue(session);
 
-  const [appointmentDate, setAppointmentDate] = useState(session.appointment_date);
-  const [status, setStatus] = useState(session.status_id);
-  const [duration, setDuration] = useState(session.duration);
-  const [amountPaid, setAmountPaid] = useState(session.amount_paid);
-  const [sessionNotes, setSessionNotes] = useState(session.session_notes);
+  useEffect(() => {
+    supabase
+      .from('Status')
+      .select('id, status').in('status', SESSION_STATUSES)
+      .order('id')
+      .then(({ data, error }) => {
+        if (error) {
+          setFormError(messageFor(error, 'Could not load session statuses.'));
+          return;
+        }
 
-  function handleFileSelection(event) {
-    // Convert the browser FileList into an array so it can be uploaded with a for...of loop.
-    setSelectedFiles(Array.from(event.target.files ?? []));
-  }
+        setStatuses(data ?? []);
+      });
+  }, []);
 
-  // This path is used both when uploading a file and when retrieving its URL.
-  function getPhotoPath(file, photoNumber) {
-    return `project_${projectId}/session_${session.id}/${file.name}${photoNumber}`;
-  }
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const storage = supabase.storage.from(PHOTO_BUCKET);
+  const storageUrl = import.meta.env.VITE_SUPABASE_URL;
 
-  async function uploadSessionPhotos() {
-    if (!selectedFiles) {
-      return;
-    }
-
-    // Upload sequentially so each generated storage path receives a stable photo number.
-    let photoNumber = 1;
-    for (const file of selectedFiles) {
-      const filePath = getPhotoPath(file, photoNumber++);
-      const { error } = await supabase.storage
-        .from('Session Photos')
-        .upload(filePath, file);
-
-      if (error) {
-        throw error;
-      }
-    }
-  }
-
-  async function updateSession() {
-    // Public URLs are stored in the Session table only after their storage files exist.
-    const imageUrls = [];
-    let photoNumber = 1;
-
-    for (const file of selectedFiles ?? []) {
-      const { data } = supabase.storage
-        .from('Session Photos')
-        .getPublicUrl(getPhotoPath(file, photoNumber++));
-      imageUrls.push(data.publicUrl);
-    }
-
-    const { data, error } = await supabase
-      .from('Session')
-      .update({
-        appointment_date: appointmentDate ?? session.appointment_date,
-        status_id: status,
-        duration: duration ?? session.duration,
-        amount_paid: amountPaid ?? session.amount_paid,
-        session_notes: sessionNotes ?? session.session_notes,
-        img_urls: [...(session.img_urls ?? []), ...imageUrls]
-      })
-      .eq('id', session.id)
-      .select()
-
-    if (error) {
-      throw error;
-    }
-
-    return data[0];
-  }
-
-  async function handleUpdateSession() {
-    setFormError('');
-    setIsSaving(true);
+  async function save() {
+    setFormError(''); setSuccess(''); setIsSaving(true);
+    const uploaded = [];
     try {
-      // Keep these awaits in order: upload files first, then save their URLs with the session.
-      await uploadSessionPhotos();
-      const updatedSession = await updateSession();
-      onUpdated(updatedSession);
-      setSessionDetails(false);
+      validateSession(form);
+      await uploadPhotos(storage, selectedFiles, `projects/${projectId}/sessions/${session.id}`, uploaded);
+      const { data, error } = await supabase.from('Session').update({
+        appointment_date: form.appointment_date, appointment_time: form.appointment_time,
+        status_id: Number(form.status_id), duration: form.duration || null,
+        amount_paid: form.amount_paid === '' ? null : Number(form.amount_paid),
+        session_notes: form.session_notes || null, img_urls: [...form.img_urls, ...uploaded],
+      }).eq('id', session.id).select('*, Status (id, status)').single();
+      if (error) throw error;
+      setForm((current) => ({ ...current, img_urls: data.img_urls ?? [] }));
+      setIsEditing(false); setSelectedFiles([]); setSuccess('Session saved.'); onUpdated(data); notifyCalendarChanged();
     } catch (error) {
-      console.log(error);
-      setFormError('Could not update this session. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+      let cleanupMessage = '';
+      try { await removePhotos(storage, uploaded, storageUrl); }
+      catch { cleanupMessage = ' Uploaded files could not be cleaned up; contact the studio administrator.'; }
+      setFormError(messageFor(error, 'Could not save this session.') + cleanupMessage);
+    } finally { setIsSaving(false); }
   }
 
-  return (
-    <div className="session-details-panel">
-      <div className='details-section-heading'>
-        <span className="project-card-kicker">Selected Session</span>
-        <button className="button button-secondary" onClick={() => {
-          if (!editSessionDetails) {
-            setSessionDetails(true);
-          } else setSessionDetails(false);
-        }}>
-          <Pencil size={16} aria-hidden="true" />
-          Edit
-        </button>
-      </div>
-      <DetailRow label="Date" value={editSessionDetails ? <>
-        <div className="form-field form-field--full">
-          <label htmlFor="appointment_date">Appointment Date</label>
-          <input type="date" id="appointment_date" value={appointmentDate ?? ''} onChange={(e) => setAppointmentDate(e.target.value)} />
-        </div>
-      </> : session.appointment_date} />
+  async function removePhoto(value) {
+    if (!window.confirm('Remove this photo from the session?')) return;
+    setFormError(''); setIsSaving(true);
+    try {
+      const next = form.img_urls.filter((item) => item !== value);
+      const { data, error } = await supabase.from('Session').update({ img_urls: next }).eq('id', session.id).select('*, Status (id, status)').single();
+      if (error) throw error;
+      setForm((current) => ({ ...current, img_urls: next })); onUpdated(data);
+      try { await removePhotos(storage, [value], storageUrl); }
+      catch { setFormError('Photo removed from the session, but storage cleanup failed. Contact the studio administrator.'); }
+    } catch (error) { setFormError(messageFor(error, 'Could not remove this photo.')); }
+    finally { setIsSaving(false); }
+  }
 
-      <DetailRow label="Duration" value={editSessionDetails ? <>
-        <div className="form-field form-field--full">
-          <label htmlFor="session-duration">Duration</label>
-          <input type="time" id="session-duration" value={duration ?? ''} onChange={(e) => setDuration(e.target.value)} />
-        </div>
-      </> : session.duration} />
-
-      <DetailRow label="Amount Paid" value={editSessionDetails ? <>
-        <div className="form-field form-field--full">
-          <label htmlFor="session-amount-paid">Amount paid</label>
-          <input type="number" name="amount-paid" id="session-amount-paid" min="0" step="0.01" value={amountPaid ?? ''} onChange={(e) => setAmountPaid(e.target.value)} />
-        </div>
-      </> : session.amount_paid} />
-
-      <DetailRow label="Session Notes" value={editSessionDetails ? <>
-        <div className="form-field form-field--full">
-          <textarea name="session-notes" id="session-notes" rows="4" value={sessionNotes ?? ''} onChange={(e) => setSessionNotes(e.target.value)} />
-        </div>
-      </> : session.session_notes} />
-
-      <div className="details-row">
-        <span className="details-label">Photos</span>
-        <div className="session-photo-grid">
-          {session.img_urls?.map((url) => (
-            <img className="session-photo" key={url} src={url} alt="Session work" />
-          ))}
-          {editSessionDetails &&
-            <>
-              <div className="form-field">
-                <label htmlFor="session-photos">Photos</label>
-                <input type="file" id="session-photos" onChange={handleFileSelection} multiple />
-              </div>
-            </>}
-        </div>
-      </div>
-
-      {editSessionDetails && <DetailRow value={
-        <div className=''>
-          <span className="project-card-kicker"></span>
-          <button className="button button-secondary" onClick={handleUpdateSession} disabled={isSaving}>
-            <Check size={16} aria-hidden="true" />
-            {isSaving ? 'Saving...' : 'Confirm'}
-          </button>
-        </div>
-      } />}
-      {formError && <p className="form-error" role="alert">{formError}</p>}
-
-    </div>
-  );
+  async function deleteSession() {
+    if (!window.confirm('Delete this session? This cannot be undone.')) return;
+    setIsSaving(true); setFormError('');
+    try {
+      const { error } = await supabase.from('Session').delete().eq('id', session.id);
+      if (error) throw error;
+      notifyCalendarChanged();
+      try { await removePhotos(storage, session.img_urls ?? [], storageUrl); }
+      catch { window.alert('Session deleted, but its private photo files need administrator cleanup.'); }
+      onDeleted();
+    } catch (error) { setFormError(messageFor(error, 'Could not delete this session.')); }
+    finally { setIsSaving(false); }
+  }
+  return <div className="session-details-panel"><div className="details-section-heading"><span className="project-card-kicker">Selected Session</span><div className="button-group"><button className="button button-secondary" type="button" disabled={isSaving} onClick={() => { if (isEditing) { setForm({ appointment_date: session.appointment_date ?? '', appointment_time: session.appointment_time ?? '', status_id: String(session.status_id ?? ''), duration: session.duration ?? '', amount_paid: session.amount_paid ?? '', session_notes: session.session_notes ?? '', img_urls: session.img_urls ?? [] }); setSelectedFiles([]); } setIsEditing(!isEditing); }}><Pencil size={16} aria-hidden="true" />{isEditing ? 'Cancel' : 'Edit'}</button><button className="button button-ghost" type="button" onClick={deleteSession} disabled={isSaving}><Trash2 size={16} aria-hidden="true" />Delete</button></div></div>
+    <SessionField editing={isEditing} label="Date"><input type="date" value={form.appointment_date} onChange={(event) => setField('appointment_date', event.target.value)} /></SessionField>
+    <SessionField editing={isEditing} label="Time"><input type="time" value={form.appointment_time} onChange={(event) => setField('appointment_time', event.target.value)} /></SessionField>
+    <SessionField editing={isEditing} label="Status" displayValue={overdue ? `Overdue · ${currentStatus}` : sessionStatusLabel(currentStatus)}><select value={form.status_id} onChange={(event) => setField('status_id', event.target.value)}>{legacyStatus && <option value={session.status_id}>{sessionStatusLabel(currentStatus)}</option>}{statuses.map((status) => <option key={status.id} value={status.id}>{status.status}</option>)}</select></SessionField>
+    {(overdue || ['Expired', 'In Review'].includes(currentStatus)) && <p className="session-attention-note" role="status">Review this session. Mark it completed, cancel it, or choose a new date and mark it rescheduled.</p>}
+    <SessionField editing={isEditing} label="Duration"><input type="time" value={form.duration} onChange={(event) => setField('duration', event.target.value)} /></SessionField>
+    <SessionField editing={isEditing} label="Amount paid"><input type="number" min="0" step="0.01" value={form.amount_paid} onChange={(event) => setField('amount_paid', event.target.value)} /></SessionField>
+    <SessionField editing={isEditing} label="Session notes"><textarea rows="3" value={form.session_notes} onChange={(event) => setField('session_notes', event.target.value)} /></SessionField>
+    <div className="details-row"><span className="details-label">Photos</span><div className="session-photo-grid">{form.img_urls.map((url) => <span className="session-photo-wrap" key={url}><PrivatePhoto className="session-photo" path={url} alt="Session work" />{isEditing && <button className="photo-remove" type="button" disabled={isSaving} onClick={() => removePhoto(url)} aria-label="Remove photo">×</button>}</span>)}{isEditing && <div className="form-field"><label htmlFor={`session-photos-${session.id}`}>Add photos</label><input id={`session-photos-${session.id}`} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} /></div>}</div></div>
+    {isEditing && <div className="form-actions"><button className="button button-primary" type="button" onClick={save} disabled={isSaving}><Check size={16} aria-hidden="true" />{isSaving ? 'Saving…' : 'Save session'}</button></div>}
+    {formError && <p className="form-error" role="alert">{formError}</p>}{success && <p className="form-success" role="status">{success}</p>}
+  </div>;
 }
 
-function ProjectInfo({ project }) {
+function SessionField({ children, editing, label, displayValue }) { return <div className="details-row"><span className="details-label">{label}</span>{editing ? <div className="form-field form-field--full">{cloneElement(children, { 'aria-label': label })}</div> : <span className="details-content">{displayValue ?? (children.props.value === '' || children.props.value == null ? '—' : children.props.value)}</span>}</div>; }
 
-  const statusCode = {
-    'In Progress': 1,
-    'Completed': 2,
-    'In Review': 3,
-    'Upcoming': 4,
-    undefined: 3,
-  };
+function ProjectInfo({ project, onUpdated, onDeleted }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [statuses, setStatuses] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [form, setForm] = useState({
+    ...project,
+    status_id: String(project.status_id ?? ''),
+    deposit_received: Boolean(project.deposit_received),
+  });
 
-  const [status, setStatus] = useState(`${statusCode[project?.Status?.status] ?? ''}`);
-  const [placement, setPlacement] = useState(`${project?.placement ?? ''}`);
-  const [size, setSize] = useState(`${project?.size ?? ''}`);
-  const [style, setStyle] = useState(`${project?.style ?? ''}`);
-  const [reference, setReference] = useState(`${project?.reference ?? ''}`);
-  const [designNotes, setDesignNotes] = useState(`${project?.design_notes ?? ''}`);
-  const [cartridgeBrand, setCartridgeBrand] = useState(`${project?.cartridge_brand ?? ''}`);
-  const [needleConfiguration, setNeedleConfig] = useState(`${project?.needle_config ?? ''}`);
-  const [dateStart, setStartDate] = useState(`${project?.date_start ?? ''}`);
-  const [targetEndDate, setTargetEndDate] = useState(`${project?.target_end_date ?? ''}`);
-  const [agreedPrice, setAgreedPrice] = useState(`${project?.agreed_price ?? 0}`);
-  const [depositAmount, setDepositAmount] = useState(`${project?.deposit_amount ?? 0}`);
-  const [depositReceived, setDepositReceived] = useState(`${project?.deposit_received ?? false}`);
-  const [clientFeedback, setClientFeedback] = useState(`${project?.client_feedback ?? ''}`);
-  const [artistNotes, setArtistNotes] = useState(`${project?.artist_notes ?? ''}`);
+  useEffect(() => {
+    supabase
+      .from('Status')
+      .select('id, status').in('status', PROJECT_STATUSES)
+      .order('id')
+      .then(({ data, error }) => {
+        if (error) {
+          setFormError(messageFor(error, 'Could not load project statuses.'));
+          return;
+        }
 
-  if (project?.Status?.status) {
-    console.log(project?.Status.status);
-  }
+        setStatuses(data ?? []);
+      });
+  }, []);
 
-  // A data-driven list keeps the detail layout consistent for every project field.
-  const details = [
-    ['Client', `${project.Client.first_name} ${project.Client.last_name}`],
-    ['Status', project.Status?.status],
-    ['Placement', project.placement],
-    ['Approximate Size', project.size],
-    ['Tattoo Style', project.style],
-    ['Reference Link', project.reference],
-    ['Design Notes', project.design_notes],
-    ['Cartridge Brand', project.cartridge_brand],
-    ['Needle Configuration', project.needle_config],
-    ['Project Start Date', project.date_start],
-    ['Target Completion Date', project.target_end_date],
-    ['Agreed Project Price', project.agreed_price],
-    ['Deposit Amount', project.deposit_amount],
-    ['Deposit Received', project.deposit_received ? 'Yes' : 'No'],
-    ['Client Feedback', project.client_feedback],
-    ['Private Artist Notes', project.artist_notes],
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const display = (value) =>
+    value === null || value === undefined || value === '' ? '—' : value;
+  const fields = [
+    ['Project Title', 'project_title'],
+    ['Placement', 'placement'],
+    ['Approximate Size', 'size'],
+    ['Tattoo Style', 'style'],
+    ['Reference Link', 'reference'],
+    ['Design Notes', 'design_notes'],
+    ['Cartridge Brand', 'cartridge_brand'],
+    ['Needle Configuration', 'needle_config'],
+    ['Project Start Date', 'date_start'],
+    ['Target Completion Date', 'target_end_date'],
+    ['Agreed Project Price', 'agreed_price'],
+    ['Deposit Amount', 'deposit_amount'],
+    ['Client Feedback', 'client_feedback'],
+    ['Private Artist Notes', 'artist_notes'],
   ];
-
-  const states = {
-    'Status': [status, setStatus],
-    'Placement': [placement, setPlacement],
-    'Approximate Size': [size, setSize],
-    'Tattoo Style': [style, setStyle],
-    'Reference Link': [reference, setReference],
-    'Design Notes': [designNotes, setDesignNotes],
-    'Cartridge Brand': [cartridgeBrand, setCartridgeBrand],
-    'Needle Configuration': [needleConfiguration, setNeedleConfig],
-    'Project Start Date': [dateStart, setStartDate],
-    'Target Completion Date': [targetEndDate, setTargetEndDate],
-    'Agreed Project Price': [agreedPrice, setAgreedPrice],
-    'Deposit Amount': [depositAmount, setDepositAmount],
-    'Deposit Received': [depositReceived, setDepositReceived],
-    'Client Feedback': [clientFeedback, setClientFeedback],
-    'Private Artist Notes': [artistNotes, setArtistNotes],
-  };
-
-  const [editProjectDetails, setEditProjectDetails] = useState(false);
-
-  async function handleUpdateProject() {
-    console.log('Running handleUpdateProject');
+  async function save() { setFormError(''); setSuccess(''); try { validateProject(form); } catch (error) { setFormError(error.message); return; } setIsSaving(true); const payload = { project_title: form.project_title.trim(), status_id: Number(form.status_id), placement: form.placement || null, size: form.size || null, style: form.style || null, reference: form.reference || null, design_notes: form.design_notes || null, cartridge_brand: form.cartridge_brand || null, needle_config: form.needle_config || null, date_start: form.date_start || null, target_end_date: form.target_end_date || null, agreed_price: form.agreed_price === '' ? null : Number(form.agreed_price), deposit_amount: form.deposit_amount === '' ? null : Number(form.deposit_amount), deposit_received: Boolean(form.deposit_received), client_feedback: form.client_feedback || null, artist_notes: form.artist_notes || null }; const { data, error } = await supabase.from('Project').update(payload).eq('id', project.id).select('id, project_title, client_id, status_id, placement, size, style, reference, design_notes, cartridge_brand, needle_config, date_start, target_end_date, agreed_price, deposit_amount, deposit_received, client_feedback, artist_notes, Status (id, status), Client (first_name, last_name, phone, email, instagram)').single(); setIsSaving(false); if (error) { setFormError(messageFor(error, 'Could not save this project.')); return; } setIsEditing(false); setSuccess('Project saved.'); onUpdated(data); notifyCalendarChanged(); }
+  async function deleteProject() {
+    if (!window.confirm('Delete this project and all its sessions? This cannot be undone.')) return;
+    setIsSaving(true); setFormError('');
     try {
-      const { data, error } = await supabase
-        .from('Project')
-        .update({
-          status_id: statusCode[status],
-          placement: placement,
-          size: size,
-          style: style,
-          reference: reference,
-          design_notes: designNotes,
-          cartridge_brand: cartridgeBrand,
-          needle_config: needleConfiguration,
-          date_start: dateStart,
-          target_end_date: targetEndDate,
-          agreed_price: Number(agreedPrice),
-          deposit_amount: Number(depositAmount),
-          deposit_received: depositReceived,
-          client_feedback: clientFeedback,
-          artist_notes: artistNotes,
-        })
-        .eq('id', project.id)
-        .select();
-
-      if (error) {
-        console.log(error);
-        return;
-      } else {
-        console.log(data);
-      }
-
-      // Set new state
-
-
-    } catch (error) {
-      console.log(error);
-    }
+      const { data: photos, error } = await supabase.rpc('studio_delete_project', { p_project_id: project.id });
+      if (error) throw error;
+      notifyCalendarChanged();
+      try { await removePhotos(supabase.storage.from(PHOTO_BUCKET), photos ?? [], import.meta.env.VITE_SUPABASE_URL); }
+      catch { window.alert('Project deleted, but its private photo files need administrator cleanup.'); }
+      onDeleted();
+    } catch (error) { setFormError(messageFor(error, 'Could not delete this project.')); }
+    finally { setIsSaving(false); }
   }
-
-  return (
-    <section className="details-section project-info-section">
-      <div className="details-section-heading">
-        <div>
-          <span className="project-card-kicker">Details</span>
-          <h3>Project Information</h3>
-        </div>
-        <button className="button button-secondary" onClick={() => {
-          if (!editProjectDetails) {
-            setEditProjectDetails(true);
-          } else setEditProjectDetails(false);
-        }}>
-          <Pencil size={16} aria-hidden="true" />
-          Edit
-        </button>
-      </div>
-      <div className="project-info-grid">
-        {details.map(([label, value]) => {
-
-          let myVar =
-            <div key={value} className="details-row">
-              <span className="details-label">{label}</span>
-              <span className="details-content">{value}</span>
-            </div>;
-          if (editProjectDetails) {
-            switch (label) {
-              case 'Status': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <select id="project-status" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)}>
-                      <option value="In Progress">In Progress</option>
-                      <option value="In Review">In Review</option>
-                      <option value="Completed">Completed</option>
-                    </select>
-                  </div>
-                </div>; break;
-              case 'Placement': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="text" id="project-placement" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Approximate Size': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="text" id="project-size" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Tattoo Style': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="text" id="project-style" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Reference Link': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="url" id="project-reference" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Design Notes': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <textarea id="project-design-notes" rows="4" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Cartridge Brand': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="text" id="project-cartridge-brand" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Needle Configuration': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="text" id="project-needle-configuration" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Project Start Date': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="date" id="project-start-date" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Target Completion Date': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="date" id="project-target-end-date" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Agreed Project Price': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="number" id="project-agreed-price" min="0" step="0.01" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Deposit Amount': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="number" id="project-deposit-amount" min="0" step="0.01" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Deposit Received': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--checkbox form-field--full">
-                    <span className="details-label">{label}</span>
-                    <input type="checkbox" id="project-deposit-received" defaultChecked={value === 'Yes'} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Client Feedback': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <textarea id="project-client-feedback" rows="3" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              case 'Private Artist Notes': myVar =
-                <div className="details-row">
-                  <div className="form-field form-field--full">
-                    <span className="details-label">{label}</span>
-                    <textarea id="project-artist-notes" rows="4" defaultValue={value ?? ''} onChange={(e) => states[label][1](e.target.value)} />
-                  </div>
-                </div>; break;
-              default: break;
-            };
-          }
-          return myVar;
-
-        })}
-      </div>
-      <div className=''>
-        <span className="project-card-kicker"></span>
-        {editProjectDetails &&
-          <button type='button' className="button button-secondary" onClick={handleUpdateProject}>
-            <Check size={16} aria-hidden="true" />
-            Confirm
-          </button>}
-      </div>
-    </section>
-  );
+  return <section className="details-section project-info-section"><div className="details-section-heading"><div><span className="project-card-kicker">Details</span><h3>Project Information</h3></div><div className="button-group"><button className="button button-secondary" type="button" disabled={isSaving} onClick={() => { if (isEditing) setForm({ ...project, status_id: String(project.status_id), deposit_received: Boolean(project.deposit_received) }); setIsEditing(!isEditing); }}><Pencil size={16} aria-hidden="true" />{isEditing ? 'Cancel' : 'Edit'}</button><button className="button button-ghost" type="button" onClick={deleteProject} disabled={isSaving}><Trash2 size={16} aria-hidden="true" />Delete</button></div></div>
+    <div className="project-info-grid"><InfoRow label="Client" value={`${project.Client?.first_name ?? ''} ${project.Client?.last_name ?? ''}`} /><InfoRow label="Status" editing={isEditing}><select value={form.status_id} onChange={(event) => setField('status_id', event.target.value)}>{statuses.map((status) => <option key={status.id} value={status.id}>{projectStatusLabel(status.status)}</option>)}</select></InfoRow>{fields.map(([label, key]) => <ProjectField key={key} label={label} field={key} value={form[key]} editing={isEditing} onChange={setField} display={display} />)}<InfoRow label="Deposit Received" value={form.deposit_received ? 'Yes' : 'No'} editing={isEditing}><input type="checkbox" checked={form.deposit_received} onChange={(event) => setField('deposit_received', event.target.checked)} /></InfoRow></div>
+    {isEditing && <div className="form-actions"><button className="button button-primary" type="button" onClick={save} disabled={isSaving}><Check size={16} aria-hidden="true" />{isSaving ? 'Saving…' : 'Save project'}</button></div>}{formError && <p className="form-error" role="alert">{formError}</p>}{success && <p className="form-success" role="status">{success}</p>}
+  </section>;
 }
 
+function InfoRow({ label, value, editing, children }) { return <div className="details-row"><span className="details-label">{label}</span>{editing ? <div className="form-field form-field--full">{cloneElement(children, { 'aria-label': label })}</div> : <span className="details-content">{children?.type === 'select' ? children.props.children.find((option) => String(option.props.value) === children.props.value)?.props.children : value === '' || value == null ? '—' : value}</span>}</div>; }
+function ProjectField({ label, field, value, editing, onChange, display }) { const textarea = ['design_notes', 'client_feedback', 'artist_notes'].includes(field); const type = field.includes('date') ? 'date' : ['agreed_price', 'deposit_amount'].includes(field) ? 'number' : field === 'reference' ? 'url' : 'text'; return <InfoRow label={label} value={display(value)} editing={editing}>{textarea ? <textarea rows="3" value={value ?? ''} onChange={(event) => onChange(field, event.target.value)} /> : <input type={type} min={type === 'number' ? '0' : undefined} step={type === 'number' ? '0.01' : undefined} value={value ?? ''} onChange={(event) => onChange(field, event.target.value)} />}</InfoRow>; }
 
-function DetailRow({ label, value }) {
-
-  return (
-    <div className="details-row">
-      <span className="details-label">{label}</span>
-      <span className="details-content">{value}</span>
-    </div>
-  );
+function ClientInfo({ client, clientId, onUpdated }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [form, setForm] = useState({
+    first_name: client?.first_name ?? '',
+    last_name: client?.last_name ?? '',
+    phone: client?.phone ?? '',
+    email: client?.email ?? '',
+    instagram: client?.instagram ?? '',
+  });
+  const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  async function save() { setFormError(''); setSuccess(''); setIsSaving(true); const { data, error } = await supabase.from('Client').update({ ...form, first_name: form.first_name.trim(), last_name: form.last_name.trim(), phone: normalizePhone(form.phone) }).eq('id', clientId).select('first_name, last_name, phone, email, instagram').single(); setIsSaving(false); if (error) { setFormError(messageFor(error, 'Could not save this client.')); return; } setIsEditing(false); setSuccess('Client saved.'); onUpdated(data); }
+  return <section className="details-section project-info-section"><div className="details-section-heading"><div><span className="project-card-kicker">Client</span><h3>Client Information</h3></div><button className="button button-secondary" type="button" disabled={isSaving} onClick={() => { if (isEditing) setForm({ first_name: client?.first_name ?? '', last_name: client?.last_name ?? '', phone: client?.phone ?? '', email: client?.email ?? '', instagram: client?.instagram ?? '' }); setIsEditing(!isEditing); }}><Pencil size={16} aria-hidden="true" />{isEditing ? 'Cancel' : 'Edit'}</button></div><div className="project-info-grid"><ClientField label="First name" field="first_name" value={form.first_name} editing={isEditing} onChange={setField} /><ClientField label="Last name" field="last_name" value={form.last_name} editing={isEditing} onChange={setField} /><ClientField label="Phone" field="phone" value={form.phone} editing={isEditing} onChange={setField} /><ClientField label="Email" field="email" value={form.email} editing={isEditing} onChange={setField} type="email" /><ClientField label="Instagram" field="instagram" value={form.instagram} editing={isEditing} onChange={setField} type="url" /></div>{isEditing && <div className="form-actions"><button className="button button-primary" type="button" onClick={save} disabled={isSaving}><Check size={16} aria-hidden="true" />{isSaving ? 'Saving…' : 'Save client'}</button></div>}{formError && <p className="form-error" role="alert">{formError}</p>}{success && <p className="form-success" role="status">{success}</p>}</section>;
 }
+
+function ClientField({ label, field, value, editing, onChange, type = 'text' }) { return <InfoRow label={label} value={value || '—'} editing={editing}><input type={type} value={value} onChange={(event) => onChange(field, event.target.value)} /></InfoRow>; }
+function EmptyState({ text }) { return <p className="empty-state">{text}</p>; }

@@ -22,4 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env.local
+# Local configuration; only the placeholder template belongs in Git.
+.env
+.env.*
+!.env.example
+coverage/
+
+# Local credentials, certificates, and database exports
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.dump
+*.sql.gz
+supabase/.temp/
+supabase/.branches/

@@ -1,10 +1,12 @@
-import { LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { ChartNoAxesCombined, LayoutDashboard, LogOut } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../../context/useAuth.js';
+import { useState } from 'react';
 
 export default function NavigationBar() {
   const { signOutUser } = useAuth();
   const navigate = useNavigate();
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Sign-out is asynchronous because Supabase needs to clear the auth session
   // before the app sends the user back to the login route.
@@ -14,8 +16,8 @@ export default function NavigationBar() {
     try {
       await signOutUser();
       navigate('/login');
-    } catch (error) {
-      console.log(error);
+    } catch {
+      setErrorMessage('Could not sign out. Please try again.');
     }
   }
 
@@ -29,6 +31,11 @@ export default function NavigationBar() {
           </div>
         </div>
 
+        <div className="nav-links">
+          <NavLink to="/" end><LayoutDashboard size={16} aria-hidden="true" />Projects</NavLink>
+          <NavLink to="/insights"><ChartNoAxesCombined size={16} aria-hidden="true" />Insights</NavLink>
+        </div>
+
         <div className="nav-actions">
           <button className="button button-ghost" onClick={handleSignOut}>
             <LogOut size={16} aria-hidden="true" />
@@ -36,6 +43,7 @@ export default function NavigationBar() {
           </button>
         </div>
       </nav>
+      {errorMessage && <p className="form-error" role="alert">{errorMessage}</p>}
 
     </>
   );

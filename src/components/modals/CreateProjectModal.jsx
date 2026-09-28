@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { Plus, X } from 'lucide-react';
 import supabase from '../../lib/supabaseClient.js';
+import { PROJECT_STATUSES, validateProject, projectStatusLabel } from '../../lib/projectRules.js';
 
 export function CreateProjectModal({ onClose, onCreated }) {
   // Form state mirrors the Project columns sent in insertNewProject below.
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
-  const [status, setStatus] = useState(0);
+  const [status, setStatus] = useState('');
+  const [statuses, setStatuses] = useState([]);
   const [placement, setPlacement] = useState("");
   const [size, setSize] = useState("");
   const [style, setStyle] = useState("");
@@ -37,6 +39,17 @@ export function CreateProjectModal({ onClose, onCreated }) {
       return;
     }
 
+    if (!status) {
+      setFormError('Choose a project status before creating this project.');
+      return;
+    }
+
+    try {
+      validateProject({ project_title: projectTitle.trim(), status_id: status, date_start: dateStart, target_end_date: targetEndDate || null, agreed_price: agreedPrice, deposit_amount: depositAmount });
+    } catch (error) {
+      setFormError(error.message);
+      return;
+    }
     setIsSaving(true);
 
     // Build the database payload explicitly so UI state names can differ from column names.
@@ -45,7 +58,7 @@ export function CreateProjectModal({ onClose, onCreated }) {
       .insert([
         {
           client_id: selectedClient.id,
-          project_title: projectTitle,
+          project_title: projectTitle.trim(),
           status_id: Number(status),
           placement: placement,
           size: size,
@@ -55,7 +68,7 @@ export function CreateProjectModal({ onClose, onCreated }) {
           cartridge_brand: cartridgeBrand,
           needle_config: needleConfiguration,
           date_start: dateStart,
-          target_end_date: targetEndDate,
+          target_end_date: targetEndDate || null,
           agreed_price: Number(agreedPrice),
           deposit_amount: Number(depositAmount),
           deposit_received: depositReceived,
@@ -77,6 +90,7 @@ export function CreateProjectModal({ onClose, onCreated }) {
 
   // Search for matching clients whenever either name input changes.
   useEffect(() => {
+    let active = true;
     const fetchClient = async () => {
       // Avoid an unfiltered query when the search fields are empty.
       if (!firstName && !lastName) {
@@ -89,16 +103,32 @@ export function CreateProjectModal({ onClose, onCreated }) {
         .ilike('first_name', `%${firstName}%`)
         .ilike('last_name', `%${lastName}%`);
 
+      if (!active) return;
       if (error) {
-        console.log(error);
+        setFormError('Could not search clients. Please try again.');
         return;
       }
 
       setClient(data);
     }
 
-    fetchClient();
+    const timer = window.setTimeout(fetchClient, 250);
+    return () => { active = false; window.clearTimeout(timer); };
   }, [firstName, lastName]);
+
+  useEffect(() => {
+    async function fetchStatuses() {
+      const { data, error } = await supabase.from('Status').select('id, status').in('status', PROJECT_STATUSES).order('id');
+      if (error) {
+        setFormError('Could not load project statuses. Please try again.');
+        return;
+      }
+      setStatuses(data ?? []);
+      const inProgress = data?.find((item) => item.status === 'In Progress');
+      setStatus(String(inProgress?.id ?? data?.[0]?.id ?? ''));
+    }
+    fetchStatuses();
+  }, []);
 
   return (
     <div id="create-project-modal" className="modal">
@@ -120,12 +150,12 @@ export function CreateProjectModal({ onClose, onCreated }) {
             <div className="project-form-grid client-search-grid">
               <div className="form-field">
                 <label htmlFor="project-client-first-name">Client first name</label>
-                <input type="text" name="first-name" id="project-client-first-name" placeholder="Alex" onChange={(e) => setFirstName(e.target.value)} required />
+                <input type="text" name="first-name" id="project-client-first-name" placeholder="Alex" onChange={(e) => { setFirstName(e.target.value); setSelectedClient(undefined); }} />
               </div>
 
               <div className="form-field">
                 <label htmlFor="project-client-last-name">Client last name</label>
-                <input type="text" name="last-name" id="project-client-last-name" placeholder="Zalman" onChange={(e) => setLastName(e.target.value)} required />
+                <input type="text" name="last-name" id="project-client-last-name" placeholder="Zalman" onChange={(e) => { setLastName(e.target.value); setSelectedClient(undefined); }} />
               </div>
             </div>
 
@@ -137,6 +167,8 @@ export function CreateProjectModal({ onClose, onCreated }) {
                     key={cl.id ?? index}
                     className={`client-details ${selectedClient?.id === cl.id ? 'client-details--selected' : ''}`}
                     aria-label="Matched client details"
+                    role="button" tabIndex={0}
+                    onKeyDown={(event) => { if (event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) { event.preventDefault(); setSelectedClient(cl); } }}
                     onClick={() => setSelectedClient(selectedClient?.id === cl.id ? undefined : cl)}
                   >
                     <div className="client-details-header">
@@ -147,7 +179,7 @@ export function CreateProjectModal({ onClose, onCreated }) {
                       <span className="client-contact-label">Phone</span>
                       <span> <a href={`https://wa.me/${cl.phone}`} target="_blank">{cl.phone || 'No phone number'}</a></span>
                       <span className="client-contact-label">Instagram</span>
-                      <span><a href={cl.instagram} target="_blank">{cl.instagram || 'No Instagram account'}</a></span>
+                      <span>{cl.instagram ? <a href={cl.instagram} target="_blank" rel="noreferrer">{cl.instagram}</a> : 'No Instagram account'}</span>
                     </div>
                   </section>
                 )
@@ -161,53 +193,49 @@ export function CreateProjectModal({ onClose, onCreated }) {
               <h3>Project and design</h3>
             </div>
             <div className="project-form-grid">
-            <div className="form-field">
-              <label htmlFor="project-title">Project title</label>
-              <input type="text" name="project-title" id="project-title" placeholder="Duck in Targaryen's Armor" onChange={(e) => setProjectTitle(e.target.value)} required />
-            </div>
+              <div className="form-field">
+                <label htmlFor="new-project-status">Status</label>
+                <select id="new-project-status" value={status} onChange={(event) => setStatus(event.target.value)} required>
+                  {statuses.map((item) => <option key={item.id} value={item.id}>{projectStatusLabel(item.status)}</option>)}
+                </select>
+              </div>
+              <div className="form-field">
+                <label htmlFor="project-title">Project title</label>
+                <input type="text" name="project-title" id="project-title" placeholder="Duck in Targaryen's Armor" onChange={(e) => setProjectTitle(e.target.value)} required />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="status">Project status</label>
-              <select name="status" id="status" placeholder="Active" onChange={(e) => setStatus(e.target.value)} required>
-                <option value=""></option>
-                <option value="1">In Progress</option>
-                <option value="2">Completed</option>
-                <option value="3">In Review</option>
-              </select>
-            </div>
+              <div className="form-field">
+                <label htmlFor="project-placement">Placement</label>
+                <input type="text" name="placement" id="project-placement" placeholder="Outer forearm" onChange={(e) => setPlacement(e.target.value)} />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="project-placement">Placement</label>
-              <input type="text" name="placement" id="project-placement" placeholder="Outer forearm" onChange={(e) => setPlacement(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="project-size">Approximate size</label>
+                <input type="text" name="size" id="project-size" placeholder="12 x 8 cm" onChange={(e) => setSize(e.target.value)} />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="project-size">Approximate size</label>
-              <input type="text" name="size" id="project-size" placeholder="12 x 8 cm" onChange={(e) => setSize(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="project-style">Tattoo style</label>
+                <select name="style" id="project-style" defaultValue="" onChange={(e) => setStyle(e.target.value)}>
+                  <option value="" disabled>Select a style</option>
+                  <option>Fine line</option>
+                  <option>Blackwork</option>
+                  <option>Realism</option>
+                  <option>Traditional</option>
+                  <option>Japanese</option>
+                  <option>Other</option>
+                </select>
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="project-style">Tattoo style</label>
-              <select name="style" id="project-style" defaultValue="" onChange={(e) => setStyle(e.target.value)}>
-                <option value="" disabled>Select a style</option>
-                <option>Fine line</option>
-                <option>Blackwork</option>
-                <option>Realism</option>
-                <option>Traditional</option>
-                <option>Japanese</option>
-                <option>Other</option>
-              </select>
-            </div>
+              <div className="form-field">
+                <label htmlFor="project-reference">Reference link</label>
+                <input type="url" name="reference" id="project-reference" placeholder="https://..." onChange={(e) => setReference(e.target.value)} />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="project-reference">Reference link</label>
-              <input type="url" name="reference" id="project-reference" placeholder="https://..." onChange={(e) => setReference(e.target.value)} />
-            </div>
-
-            <div className="form-field form-field--full">
-              <label htmlFor="project-brief">Tattoo brief and design notes</label>
-              <textarea name="brief" id="project-brief" rows="4" placeholder="Agreed idea, motifs, direction, and any changes discussed with the client." onChange={(e) => setDesignNotes(e.target.value)} />
-            </div>
+              <div className="form-field form-field--full">
+                <label htmlFor="project-brief">Tattoo brief and design notes</label>
+                <textarea name="brief" id="project-brief" rows="4" placeholder="Agreed idea, motifs, direction, and any changes discussed with the client." onChange={(e) => setDesignNotes(e.target.value)} />
+              </div>
             </div>
           </section>
 
@@ -217,15 +245,15 @@ export function CreateProjectModal({ onClose, onCreated }) {
               <h3>Equipment</h3>
             </div>
             <div className="project-form-grid">
-            <div className="form-field">
-              <label htmlFor="cartridge-brand">Cartridge brand</label>
-              <input type="text" name="cartridge-brand" id="cartridge-brand" placeholder="Kwadron" onChange={(e) => setCartridgeBrand(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="cartridge-brand">Cartridge brand</label>
+                <input type="text" name="cartridge-brand" id="cartridge-brand" placeholder="Kwadron" onChange={(e) => setCartridgeBrand(e.target.value)} />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="needle-config">Needle configuration</label>
-              <input type="text" name="needle-config" id="needle-config" placeholder="3RL, 7RS" onChange={(e) => setNeedleConfig(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="needle-config">Needle configuration</label>
+                <input type="text" name="needle-config" id="needle-config" placeholder="3RL, 7RS" onChange={(e) => setNeedleConfig(e.target.value)} />
+              </div>
             </div>
           </section>
 
@@ -235,35 +263,35 @@ export function CreateProjectModal({ onClose, onCreated }) {
               <h3>Timing and pricing</h3>
             </div>
             <div className="project-form-grid">
-            <div className="form-field">
-              <label htmlFor="date-start">Project start date</label>
-              <input type="date" name="date-start" id="date-start" onChange={(e) => setStartDate(e.target.value)} required />
-            </div>
+              <div className="form-field">
+                <label htmlFor="date-start">Project start date</label>
+                <input type="date" name="date-start" id="date-start" onChange={(e) => setStartDate(e.target.value)} required />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="date-end">Target completion date</label>
-              <input type="date" name="date-end" id="date-end" onChange={(e) => setTargetEndDate(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="date-end">Target completion date</label>
+                <input type="date" name="date-end" id="date-end" onChange={(e) => setTargetEndDate(e.target.value)} />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="full-price">Agreed project price</label>
-              <input type="number" name="full-price" id="full-price" min="0" step="0.01" placeholder="350" onChange={(e) => setAgreedPrice(e.target.value)} required />
-            </div>
+              <div className="form-field">
+                <label htmlFor="full-price">Agreed project price</label>
+                <input type="number" name="full-price" id="full-price" min="0" step="0.01" placeholder="350" onChange={(e) => setAgreedPrice(e.target.value)} required />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="deposit-amount">Deposit amount</label>
-              <input type="number" name="deposit-amount" id="deposit-amount" min="0" step="0.01" placeholder="50" onChange={(e) => setDepositAmount(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="deposit-amount">Deposit amount</label>
+                <input type="number" name="deposit-amount" id="deposit-amount" min="0" step="0.01" placeholder="50" onChange={(e) => setDepositAmount(e.target.value)} />
+              </div>
 
-            <div className="form-field form-field--checkbox">
-              <label htmlFor="deposit-paid">Deposit received</label>
-              <input type="checkbox" name="deposit-paid" id="deposit-paid" onChange={(event) => setDepositReceived(event.target.checked)} required />
-            </div>
+              <div className="form-field form-field--checkbox">
+                <label htmlFor="deposit-paid">Deposit received</label>
+                <input type="checkbox" name="deposit-paid" id="deposit-paid" onChange={(event) => setDepositReceived(event.target.checked)} />
+              </div>
 
-            <div className="form-field">
-              <label htmlFor="client-feedback">Client feedback</label>
-              <input type="text" name="client-feedback" id="client-feedback" onChange={(e) => setClientFeedback(e.target.value)} />
-            </div>
+              <div className="form-field">
+                <label htmlFor="client-feedback">Client feedback</label>
+                <input type="text" name="client-feedback" id="client-feedback" onChange={(e) => setClientFeedback(e.target.value)} />
+              </div>
             </div>
           </section>
 

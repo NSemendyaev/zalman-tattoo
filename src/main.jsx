@@ -4,13 +4,14 @@ import './index.css'
 import { RouterProvider } from 'react-router'
 import { router } from './router.jsx'
 import { AuthProvider } from './context/AuthProvider.jsx'
+import { isConfigured } from './lib/supabaseClient.js'
 
 // main.jsx is the browser entry point. It connects React to the #root element
 // in index.html and wraps the whole routed app with shared providers.
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <AuthProvider>
+    {isConfigured ? <AuthProvider>
       <RouterProvider router={router} />
-    </AuthProvider>
+    </AuthProvider> : <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h1>Studio setup needed</h1><p>The studio connection has not been configured. Ask the administrator to set the Supabase URL and publishable key, then restart or rebuild the app.</p></main>}
   </StrictMode>,
 )

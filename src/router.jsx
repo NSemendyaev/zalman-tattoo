@@ -6,5 +6,6 @@ import LoginPage from "./features/auth/LoginPage.jsx";
 // render for that route. For example, visiting /login shows <LoginPage />.
 export const router = createBrowserRouter([
     { path: "/", element: <App /> },
+    { path: "/insights", element: <App page="insights" /> },
     { path: "/login", element: <LoginPage /> },
 ]);
