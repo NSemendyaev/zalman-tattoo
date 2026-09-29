@@ -1,6 +1,6 @@
-# Private studio setup
+# Private artist workspace setup
 
-This app is intended for one studio and explicitly approved users. It uses Supabase Auth, Postgres and a private `Session Photos` bucket. The browser receives only a publishable key; access is enforced in the database and storage policies.
+This app is intended for one independent artist and explicitly approved users. It uses Supabase Auth, Postgres and a private `Session Photos` bucket. The browser receives only a publishable key; access is enforced in the database and storage policies.
 
 ## Existing ZalmanTattoo backend
 
@@ -12,7 +12,7 @@ Apply the migration once through the Supabase SQL editor after reviewing it. It 
 
 - Adds `StudioMember`, readable only by its own member and writable only by an administrator.
 - Restricts the existing table policies to approved members and revokes anonymous table access.
-- Makes the photo bucket private and allows approved studio members to manage its files.
+- Makes the photo bucket private and allows approved accounts to manage its files.
 - Limits new images to JPEG, PNG and WebP, at most 10 MB each.
 - Adds missing session statuses without changing existing IDs.
 - Adds `studio_upcoming_session(p_project_id default null)` and `studio_delete_project(p_project_id)`.
@@ -30,9 +30,9 @@ The original `fetch_upcoming_session*` functions may remain in the backend for c
 ## Give your friend access
 
 1. Create your friend's user through Supabase **Authentication → Users**, with them completing any password setup themselves. The app has no public signup screen.
-2. In the SQL editor, add their Auth user UUID to `public."StudioMember"`. This grants access to the studio's shared records and photos. Do not commit real account identifiers to this repository.
+2. In the SQL editor, add their Auth user UUID to `public."StudioMember"`. This grants access to the artist's shared records and photos. Do not commit real account identifiers to this repository.
 3. Verify that the account can sign in, create a client/project, schedule a session, and upload/view a photo.
-4. Remove obsolete test memberships when the studio switches to real records. Disabling public signups in Supabase Auth is also appropriate for this private app; membership remains the authorization boundary even if an unapproved account exists.
+4. Remove obsolete test memberships when the artist switches to real records. Disabling public signups in Supabase Auth is also appropriate for this private app; membership remains the authorization boundary even if an unapproved account exists.
 
 Password setup and recovery need an administrator-assisted handoff. The app does not yet provide a screen for choosing a new password, so a Supabase recovery email alone is not a complete recovery workflow.
 
@@ -63,7 +63,7 @@ Build with `npm run build` and serve `dist/` on an HTTPS static host. Configure 
 1. Commit the reviewed source changes and push them to your repository. This repository's earlier privacy cleanup rewrote local Git history, so resolve that remote-history update deliberately before connecting it.
 2. Import that repository into Netlify and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as build environment variables. Never upload `.env.local` or set a service-role key.
 3. Deploy and open the HTTPS URL. Set this URL in Supabase Auth's site URL configuration.
-4. Test a direct visit to `/login`, sign in with an approved studio account, and confirm a private photo loads.
+4. Test a direct visit to `/login`, sign in with an approved account, and confirm a private photo loads.
 5. Share the URL with your friend after their account is added to `StudioMember`.
 
 No Netlify account, site, custom domain, or paid plan is created by these repository settings. See [Netlify's Vite deployment guide](https://docs.netlify.com/build/frameworks/framework-setup-guides/vite/).
@@ -72,19 +72,19 @@ No Netlify account, site, custom domain, or paid plan is created by these reposi
 
 The Google Calendar integration is prepared but **not enabled on the existing Supabase project**. It requires a Google Cloud OAuth client and the friend's one-time Google consent. Do not set `VITE_GOOGLE_CALENDAR_ENABLED` until the backend is ready.
 
-1. Apply `supabase/migrations/202609280002_google_calendar.sql` to the studio Supabase project. It creates private connection, OAuth state, and event-mapping tables. Only the Edge Function service role can read the stored Google refresh token.
+1. Apply `supabase/migrations/202609280002_google_calendar.sql` to the artist's Supabase project. It creates private connection, OAuth state, and event-mapping tables. Only the Edge Function service role can read the stored Google refresh token.
 2. In Google Cloud, enable the Google Calendar API, configure the OAuth consent screen, and create a **Web application** OAuth client. Grant the `calendar.events.owned` scope. Set its authorized redirect URI to `https://<project-ref>.supabase.co/functions/v1/google-calendar`. If the OAuth app is in External/Testing mode, add the friend as a test user; [Google says its refresh tokens expire after seven days in that mode](https://developers.google.com/identity/protocols/oauth2), so they would need to reconnect weekly until the consent setup supports longer-lived tokens.
 3. In Supabase Edge Function secrets, set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (the exact URI above), and `APP_ORIGIN` (the static site's HTTPS origin, with no trailing slash). Keep the client secret out of Vite variables and Git. Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the function.
-4. Deploy `google-calendar` from `supabase/functions/google-calendar` with `supabase/config.toml`. This function intentionally has `verify_jwt = false` because Google calls its public OAuth callback. Its POST operations verify the Supabase bearer token and studio membership themselves.
-5. Add `VITE_GOOGLE_CALENDAR_ENABLED=true` to the static host's build environment and redeploy the frontend. Sign in to the studio app, click **Connect Google Calendar**, and complete the Google consent screen. Check that a future session appears on the account's primary calendar, then edit, reschedule, and cancel a test session to verify updates.
+4. Deploy `google-calendar` from `supabase/functions/google-calendar` with `supabase/config.toml`. This function intentionally has `verify_jwt = false` because Google calls its public OAuth callback. Its POST operations verify the Supabase bearer token and approved account membership themselves.
+5. Add `VITE_GOOGLE_CALENDAR_ENABLED=true` to the static host's build environment and redeploy the frontend. Sign in to the artist's app, click **Connect Google Calendar**, and complete the Google consent screen. Check that a future session appears on the account's primary calendar, then edit, reschedule, and cancel a test session to verify updates.
 
-The integration writes events **from studio sessions to Google Calendar**. It does not import edits made in Google Calendar. Only future Upcoming/Rescheduled sessions are initially imported; existing mapped events remain as history when marked Completed. Cancelled and deleted sessions are removed. Event titles include the project title, but not client contact details or private notes. Times use Europe/London; sessions without a duration default to two hours. The app syncs after its scheduling/edit/deletion actions, when opened, and every two minutes while open. It does not run a server-side background job while the app is closed. Disconnect stops future writes but leaves already-created Google events in place.
+The integration writes events **from the artist's sessions to Google Calendar**. It does not import edits made in Google Calendar. Only future Upcoming/Rescheduled sessions are initially imported; existing mapped events remain as history when marked Completed. Cancelled and deleted sessions are removed. Event titles include the project title, but not client contact details or private notes. Times use Europe/London; sessions without a duration default to two hours. The app syncs after its scheduling/edit/deletion actions, when opened, and every two minutes while open. It does not run a server-side background job while the app is closed. Disconnect stops future writes but leaves already-created Google events in place.
 
 ## Public portfolio
 
 The public portfolio migration, `supabase/migrations/202609280003_public_portfolio.sql`, was applied to the connected ZalmanTattoo project on 28 September 2026. Do not run it again there. It adds separate `PortfolioProject` and `PortfolioPhoto` tables plus a **public** `Portfolio Photos` bucket. The live check found zero public projects and photos, with the new bucket public and `Session Photos` still private. No existing project, session, or photo was published by the migration. Anonymous visitors can read only explicitly published titles, summaries, and selected public photo paths. They cannot read client records, private project/session fields, the source photo paths, or the private `Session Photos` bucket.
 
-The landing page is `/` for signed-out visitors and `/portfolio` for anyone, including a signed-in artist previewing it. Its featured image and project gallery use only selected public photos. Open a project in the studio dashboard, write a public title and short overview in **Public portfolio**, and publish that overview. Then choose individual photos with **Show on public page**, or tick the individual checkboxes when adding new session photos. Newly public photos are re-encoded to WebP at up to 2000 pixels to strip original filenames and image metadata before upload. Check the *image contents* yourself for faces, names, identifying marks, or other details you do not want to publish.
+The landing page is `/` for signed-out visitors and `/portfolio` for anyone, including a signed-in artist previewing it. Its featured image and project gallery use only selected public photos. Open a project in the artist dashboard, write a public title and short overview in **Public portfolio**, and publish that overview. Then choose individual photos with **Show on public page**, or tick the individual checkboxes when adding new session photos. Newly public photos are re-encoded to WebP at up to 2000 pixels to strip original filenames and image metadata before upload. Check the *image contents* yourself for faces, names, identifying marks, or other details you do not want to publish.
 
 Removing a photo from the public page or unpublishing a project removes its public copy. Removing a private photo, session, or project also attempts to clean up its public copy. Storage and database changes are separate operations; cleanup failures are shown and require administrator attention. Previously downloaded or cached public images cannot be recalled from visitors.
 

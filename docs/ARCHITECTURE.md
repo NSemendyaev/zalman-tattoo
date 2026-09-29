@@ -10,7 +10,7 @@ src/
 ├── context/             Shared Supabase authentication state
 ├── features/
 │   ├── auth/            Login page
-│   ├── insights/        Studio metrics and charts
+│   ├── insights/        Artist metrics and charts
 │   └── projects/        Dashboard, project details, sessions, photo editing
 ├── lib/                 Shared Supabase client
 ├── App.jsx              Dashboard shell and login redirect
@@ -34,7 +34,7 @@ The core data relationships are one client to many projects, and one project to 
 
 The Insights page reads project and session rows with the same member-limited Supabase permissions as the dashboard. It paginates reads beyond Supabase's default result limit and computes chart summaries in the browser. Payment charts use session `amount_paid` and appointment dates; project prices and deposits are excluded to avoid counting the same money twice. True profit needs expense and payment-date records that this schema does not have.
 
-The optional Google Calendar Edge Function keeps refresh tokens and event mappings in tables inaccessible to browser roles. Its public OAuth callback consumes a short-lived state token; other actions verify a signed-in studio member. The browser requests a reconciliation after session/project edits and every two minutes while open. This is one-way app-to-Google sync and needs Google Cloud credentials before deployment.
+The optional Google Calendar Edge Function keeps refresh tokens and event mappings in tables inaccessible to browser roles. Its public OAuth callback consumes a short-lived state token; other actions verify a signed-in approved member. The browser requests a reconciliation after session/project edits and every two minutes while open. This is one-way app-to-Google sync and needs Google Cloud credentials before deployment.
 
 The public portfolio is separated from private project, client, session, and photo data. The artist writes public titles and summaries into `PortfolioProject` and deliberately chooses images copied into a distinct public bucket. Anonymous database grants expose only those public columns and selected photo paths; the original session images remain in the private bucket. The public route renders empty until an artist publishes content.
 
@@ -48,6 +48,6 @@ The public portfolio is separated from private project, client, session, and pho
 
 ## Validation and remaining work
 
-The existing-backend migration restricts records and storage to approved studio members, seeds missing statuses, adds a London-time upcoming-session query, and provides atomic project/session deletion. See [setup](SETUP.md) for application and database regression checks.
+The existing-backend migration restricts records and storage to approved accounts, seeds missing statuses, adds a London-time upcoming-session query, and provides atomic project/session deletion. See [setup](SETUP.md) for application and database regression checks.
 
-Future improvements include splitting the remaining large project detail component, a standalone client directory, self-service account recovery, appointment conflict detection, and scheduled orphan-file cleanup. The current app is a single-studio workspace, not a multi-tenant booking service.
+Future improvements include splitting the remaining large project detail component, a standalone client directory, self-service account recovery, appointment conflict detection, and scheduled orphan-file cleanup. The current app is a private workspace for one artist.

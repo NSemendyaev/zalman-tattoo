@@ -55,7 +55,7 @@ export default function InsightsPage() {
         setError('');
       }
     }).catch(() => {
-      if (active) setError('Could not load studio insights. Please try again.');
+      if (active) setError('Could not load insights. Please try again.');
     });
     return () => { active = false; };
   }, [reload]);
@@ -65,12 +65,12 @@ export default function InsightsPage() {
 
   return <section className="insights-page">
     <header className="insights-heading">
-      <div><p className="eyebrow">Studio insights</p><h1>Know your work.</h1><p>See where your time goes, which styles clients choose, and how recorded payments change through the year.</p></div>
+      <div><p className="eyebrow">Your insights</p><h1>Know your work.</h1><p>See where your time goes, which styles clients choose, and how recorded payments change through the year.</p></div>
       <label className="insights-year">Year <select value={year} onChange={(event) => { autoYear.current = false; setYear(Number(event.target.value)); }}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
     </header>
 
     {error && <div className="insights-error" role="alert"><p>{error}</p><button className="button button-secondary" type="button" onClick={() => { setData(null); setError(''); setReload((value) => value + 1); }}><RefreshCw size={16} aria-hidden="true" />Retry</button></div>}
-    {!data && !error && <p className="insights-loading" role="status">Loading studio insights…</p>}
+    {!data && !error && <p className="insights-loading" role="status">Loading insights…</p>}
 
     {summary && !error && <>
       <div className="insight-metrics">

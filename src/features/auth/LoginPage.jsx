@@ -45,7 +45,7 @@ export default function LoginPage() {
             <span className="brand-mark">ZT</span>
             <div>
               <h1>Zalman Tattoo</h1>
-              <p>Studio dashboard</p>
+              <p>Artist dashboard</p>
             </div>
           </div>
           <form onSubmit={handleSignIn}>

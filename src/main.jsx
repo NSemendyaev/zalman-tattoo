@@ -12,6 +12,6 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     {isConfigured ? <AuthProvider>
       <RouterProvider router={router} />
-    </AuthProvider> : <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h1>Studio setup needed</h1><p>The studio connection has not been configured. Ask the administrator to set the Supabase URL and publishable key, then restart or rebuild the app.</p></main>}
+    </AuthProvider> : <main style={{ padding: '2rem', fontFamily: 'sans-serif' }}><h1>App setup needed</h1><p>The app connection has not been configured. Set the Supabase URL and publishable key, then restart or rebuild the app.</p></main>}
   </StrictMode>,
 )

@@ -162,7 +162,7 @@ function DashboardHeader({ projectSummaries, onAddClient, onCreateProject }) {
   return (
     <div className="dashboard-heading">
       <div className="dashboard-title-group">
-        <p className="eyebrow">Studio overview</p>
+        <p className="eyebrow">Your work</p>
         <h1>Good to see you.</h1>
         {projectSummaries && (
           <p className="dashboard-meta">
@@ -561,7 +561,7 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
     } catch (error) {
       let cleanupMessage = '';
       try { await removePhotos(storage, uploaded, storageUrl); }
-      catch { cleanupMessage = ' Uploaded files could not be cleaned up; contact the studio administrator.'; }
+      catch { cleanupMessage = ' Uploaded files could not be cleaned up; contact the account administrator.'; }
       setFormError(messageFor(error, 'Could not save this session.') + cleanupMessage);
     } finally { setIsSaving(false); }
   }
@@ -580,7 +580,7 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
       if (error) throw error;
       setForm((current) => ({ ...current, img_urls: next })); onUpdated(data);
       try { await removePhotos(storage, [value], storageUrl); }
-      catch { setFormError('Photo removed from the session, but storage cleanup failed. Contact the studio administrator.'); }
+      catch { setFormError('Photo removed from the session, but storage cleanup failed. Contact the account administrator.'); }
     } catch (error) { setFormError(messageFor(error, 'Could not remove this photo.')); }
     finally { setIsSaving(false); }
   }

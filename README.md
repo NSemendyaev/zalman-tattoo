@@ -1,8 +1,8 @@
-# Zalman Tattoo Studio Tracker
+# Zalman Tattoo Artist Tracker
 
-A personal web app project for organizing the work behind a tattoo appointment: client details, design briefs, deposits, sessions, and progress photos in one studio dashboard.
+A personal web app for an independent tattoo artist to organize client details, design briefs, deposits, sessions, and progress photos in one dashboard.
 
-**Status: private studio beta.** Originally a paused personal project, now being prepared for one studio to use with approved accounts. The repository includes the frontend, a migration for the existing backend, and workflow/access-control regression tests. Hosting and a real-user handoff are separate setup steps.
+**Status: private artist beta.** Originally a paused personal project, now being prepared for one artist to use with approved accounts. The repository includes the frontend, a migration for the existing backend, and workflow/access-control regression tests. Hosting and a real-user handoff are separate setup steps.
 
 ## The idea
 
@@ -14,13 +14,13 @@ The main workflow is **add a client → create a project → schedule sessions �
 
 - **Authentication:** email/password sign-in and sign-out through Supabase Auth, with shared authentication state in React Context.
 - **Project dashboard:** sortable project cards, status counts, photo previews, and upcoming appointment summaries.
-- **Studio insights:** year-by-year charts for recorded session payments, popular tattoo styles, and completed-session weekdays, plus summary metrics.
+- **Artist insights:** year-by-year charts for recorded session payments, popular tattoo styles, and completed-session weekdays, plus summary metrics.
 - **Client records:** contact details, duplicate-phone checks when adding a client, and editing from the project view.
 - **Project management:** design briefs, placement, size, style, equipment notes, agreed prices, and deposit tracking; project editing and deletion with confirmation.
 - **Session tracking:** scheduling, date/time changes, database-backed statuses, payment amounts, notes, and a session timeline. Past unresolved appointments appear in a review list until their outcome is recorded or they are rescheduled.
 - **Progress photos:** multiple image uploads attached to a session, private signed photo access, upload validation/rollback, and photo removal.
 - **Curated public landing page:** a signed-out introduction and gallery of only the project titles, summaries, and individual photos the artist explicitly publishes. Public copies are kept separate from private session photos.
-- **Optional Google Calendar connection:** one-way appointment events for a connected studio member; requires separate Google OAuth and Supabase function setup.
+- **Optional Google Calendar connection:** one-way appointment events for an approved account; requires separate Google OAuth and Supabase function setup.
 - **Interface states:** loading placeholders, empty states, and feedback for many failed loads and saves.
 
 These describe features implemented in the source. They do not imply that every workflow has been verified against a live backend.
@@ -58,7 +58,7 @@ Replace the placeholders in `.env.local` with your own Supabase project URL and 
 npm run dev
 ```
 
-**A configured Supabase backend and an existing Auth user are required to use the dashboard.** There is no bundled demo account or offline demo. The included migration upgrades the existing studio schema; it is not a full fresh-project bootstrap. Copying the environment template alone does not create the backend. See [backend setup and data requirements](docs/SETUP.md).
+**A configured Supabase backend and an existing Auth user are required to use the dashboard.** There is no bundled demo account or offline demo. The included migration upgrades the existing schema; it is not a full fresh-project bootstrap. Copying the environment template alone does not create the backend. See [backend setup and data requirements](docs/SETUP.md).
 
 For a source review, lint and build can run without connecting to a backend:
 
@@ -72,8 +72,8 @@ npm run build
 
 ## Current limits
 
-- The migration targets the existing studio schema. A completely fresh Supabase project needs the base tables first.
-- Studio members share the same records; this is not a multi-tenant service for unrelated studios.
+- The migration targets the existing schema. A completely fresh Supabase project needs the base tables first.
+- Approved accounts share the artist's records; this is a private workspace for one artist.
 - Self-service signup and password recovery are not exposed in the app; accounts are managed through Supabase Auth.
 - Storage cleanup cannot share a transaction with database writes. Cleanup failures are reported for administrator follow-up.
 - The public portfolio migration is applied to the connected ZalmanTattoo backend; nothing is published by default. A published photo is publicly accessible and may remain in a visitor's cache after removal.

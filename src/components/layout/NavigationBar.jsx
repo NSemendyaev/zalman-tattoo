@@ -25,7 +25,6 @@ export default function NavigationBar() {
     <>
       <nav className="nav-bar">
         <div className="brand-lockup">
-          <span className="brand-mark">ZT</span>
           <div className="brand-title-row">
             <p className="brand-title">Zalman Tattoo</p>
           </div>
