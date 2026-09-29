@@ -1,4 +1,4 @@
-import { ChartNoAxesCombined, LayoutDashboard, LogOut } from 'lucide-react';
+import { ChartNoAxesCombined, Globe2, LayoutDashboard, LogOut } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router';
 import { useAuth } from '../../context/useAuth.js';
 import { useState } from 'react';
@@ -34,6 +34,7 @@ export default function NavigationBar() {
         <div className="nav-links">
           <NavLink to="/" end><LayoutDashboard size={16} aria-hidden="true" />Projects</NavLink>
           <NavLink to="/insights"><ChartNoAxesCombined size={16} aria-hidden="true" />Insights</NavLink>
+          <NavLink to="/portfolio"><Globe2 size={16} aria-hidden="true" />Portfolio</NavLink>
         </div>
 
         <div className="nav-actions">

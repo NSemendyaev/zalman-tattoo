@@ -1,0 +1,105 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDownRight, ArrowRight, Image as ImageIcon } from 'lucide-react';
+import { Link } from 'react-router';
+import supabase from '../../lib/supabaseClient.js';
+import { publicPhotoUrl } from '../../lib/portfolio.js';
+import { useAuth } from '../../context/useAuth.js';
+
+export default function PortfolioPage() {
+  const { session } = useAuth();
+  const [projects, setProjects] = useState(null);
+  const [photos, setPhotos] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = 'Selected work | Zalman Tattoo';
+    let active = true;
+    Promise.all([
+      supabase.from('PortfolioProject')
+        .select('id, public_title, public_summary, created_at')
+        .eq('published', true).order('created_at', { ascending: false }),
+      supabase.from('PortfolioPhoto')
+        .select('id, portfolio_project_id, public_path'),
+    ]).then(([projectResult, photoResult]) => {
+      if (!active) return;
+      if (projectResult.error || photoResult.error) {
+        setError('The portfolio is unavailable right now. Please try again later.');
+        setProjects([]);
+        return;
+      }
+      setProjects(projectResult.data ?? []);
+      setPhotos(photoResult.data ?? []);
+    }).catch(() => {
+      if (active) { setError('The portfolio is unavailable right now. Please try again later.'); setProjects([]); }
+    });
+    return () => { active = false; document.title = previousTitle; };
+  }, []);
+
+  const photosByProject = useMemo(() => {
+    const grouped = new Map();
+    for (const photo of photos) {
+      const group = grouped.get(photo.portfolio_project_id) ?? [];
+      group.push(photo);
+      grouped.set(photo.portfolio_project_id, group);
+    }
+    return grouped;
+  }, [photos]);
+  const featuredProject = projects?.find((project) => photosByProject.get(project.id)?.length);
+  const featuredPhoto = featuredProject && photosByProject.get(featuredProject.id)[0];
+
+  return <div className="public-portfolio">
+    <header className="public-portfolio-header">
+      <Link className="public-portfolio-brand" to="/portfolio"><span className="brand-mark">ZT</span><span>Zalman Tattoo</span></Link>
+      <nav className="public-portfolio-nav" aria-label="Main navigation">
+        <a href="#work">Work</a>
+        <a href="#about">About</a>
+        <Link className="public-portfolio-login" to={session ? '/' : '/login'}>{session ? 'Studio dashboard' : 'Studio sign-in'}<ArrowRight size={16} aria-hidden="true" /></Link>
+      </nav>
+    </header>
+    <main>
+      <section className="public-portfolio-hero">
+        <div className="public-portfolio-hero-inner">
+          <div className="public-portfolio-hero-copy">
+            <p className="eyebrow">Zalman Tattoo / Selected work</p>
+            <h1>Art with a story to tell.</h1>
+            <p>An evolving collection of tattoo projects, shared one piece at a time by the artist.</p>
+            <a className="public-portfolio-hero-link" href="#work">Explore the work <ArrowDownRight size={20} aria-hidden="true" /></a>
+          </div>
+          <div className={`public-portfolio-hero-art${featuredPhoto ? ' has-photo' : ''}`}>
+            {featuredPhoto
+              ? <img src={publicPhotoUrl(supabase, featuredPhoto.public_path)} alt={`Selected tattoo project: ${featuredProject.public_title}`} />
+              : <div className="public-portfolio-hero-monogram" aria-hidden="true">ZT</div>}
+            <span className="public-portfolio-hero-art-caption">{featuredProject ? featuredProject.public_title : 'A portfolio in progress'}</span>
+          </div>
+        </div>
+      </section>
+      <section className="public-portfolio-intro" id="about" aria-labelledby="portfolio-about-title">
+        <p className="eyebrow">The studio</p>
+        <div><h2 id="portfolio-about-title">A closer look at the work.</h2><p>This space brings together selected projects and the details that make each one distinct. Browse the pieces below to see what the artist has chosen to share.</p></div>
+      </section>
+      <section className="public-portfolio-work" id="work" aria-labelledby="portfolio-work-title">
+        <div className="public-portfolio-section-heading"><div><p className="eyebrow">The portfolio</p><h2 id="portfolio-work-title">Selected projects</h2></div><span>01 / Work</span></div>
+        {projects === null && !error && <p role="status">Loading selected work…</p>}
+        {error && <p className="public-portfolio-empty" role="alert">{error}</p>}
+        {projects?.length === 0 && !error && <div className="public-portfolio-empty"><ImageIcon size={26} aria-hidden="true" /><p>Selected work will appear here soon.</p></div>}
+        {!!projects?.length && <div className="public-portfolio-grid">{projects.map((project) => {
+          const projectPhotos = photosByProject.get(project.id) ?? [];
+          return <article className="public-portfolio-card" key={project.id}>
+            <div className="public-portfolio-card-media">
+              {projectPhotos.length
+                ? <a href={publicPhotoUrl(supabase, projectPhotos[0].public_path)} target="_blank" rel="noreferrer" aria-label={`View photo of ${project.public_title}`}><img src={publicPhotoUrl(supabase, projectPhotos[0].public_path)} alt={project.public_title} loading="lazy" /></a>
+                : <div className="public-portfolio-photo-placeholder"><ImageIcon size={30} aria-hidden="true" /><span>Photo coming soon</span></div>}
+            </div>
+            <div className="public-portfolio-card-copy"><span className="eyebrow">Tattoo project</span><h3>{project.public_title}</h3>{project.public_summary && <p>{project.public_summary}</p>}{projectPhotos.length > 1 && <div className="public-portfolio-thumbnails" aria-label={`More photos of ${project.public_title}`}>{projectPhotos.slice(1).map((photo, index) => <a key={photo.id} href={publicPhotoUrl(supabase, photo.public_path)} target="_blank" rel="noreferrer" aria-label={`View photo ${index + 2} of ${project.public_title}`}><img src={publicPhotoUrl(supabase, photo.public_path)} alt="" loading="lazy" /></a>)}</div>}</div>
+          </article>;
+        })}</div>}
+      </section>
+      <section className="public-portfolio-outro">
+        <div><p className="eyebrow">Zalman Tattoo</p><h2>Made to be seen.<br />Made to last.</h2></div>
+        <a href="#work">Back to the work <ArrowRight size={19} aria-hidden="true" /></a>
+      </section>
+    </main>
+    <footer className="public-portfolio-footer"><span>© {new Date().getFullYear()} Zalman Tattoo</span><span>Selected tattoo work</span></footer>
+  </div>;
+}

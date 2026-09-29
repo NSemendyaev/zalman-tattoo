@@ -19,6 +19,8 @@ The main workflow is **add a client → create a project → schedule sessions �
 - **Project management:** design briefs, placement, size, style, equipment notes, agreed prices, and deposit tracking; project editing and deletion with confirmation.
 - **Session tracking:** scheduling, date/time changes, database-backed statuses, payment amounts, notes, and a session timeline. Past unresolved appointments appear in a review list until their outcome is recorded or they are rescheduled.
 - **Progress photos:** multiple image uploads attached to a session, private signed photo access, upload validation/rollback, and photo removal.
+- **Curated public landing page:** a signed-out introduction and gallery of only the project titles, summaries, and individual photos the artist explicitly publishes. Public copies are kept separate from private session photos.
+- **Optional Google Calendar connection:** one-way appointment events for a connected studio member; requires separate Google OAuth and Supabase function setup.
 - **Interface states:** loading placeholders, empty states, and feedback for many failed loads and saves.
 
 These describe features implemented in the source. They do not imply that every workflow has been verified against a live backend.
@@ -74,6 +76,8 @@ npm run build
 - Studio members share the same records; this is not a multi-tenant service for unrelated studios.
 - Self-service signup and password recovery are not exposed in the app; accounts are managed through Supabase Auth.
 - Storage cleanup cannot share a transaction with database writes. Cleanup failures are reported for administrator follow-up.
+- The public portfolio migration is applied to the connected ZalmanTattoo backend; nothing is published by default. A published photo is publicly accessible and may remain in a visitor's cache after removal.
+- Calendar synchronization requires Google credentials and is triggered by app activity, not a continuously running background worker.
 - AI summaries, Instagram post generation, and notifications remain ideas only.
 - A production browser link, your friend's account, backups, and final live workflow checks are required for handoff.
 

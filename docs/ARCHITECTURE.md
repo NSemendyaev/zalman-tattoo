@@ -36,6 +36,8 @@ The Insights page reads project and session rows with the same member-limited Su
 
 The optional Google Calendar Edge Function keeps refresh tokens and event mappings in tables inaccessible to browser roles. Its public OAuth callback consumes a short-lived state token; other actions verify a signed-in studio member. The browser requests a reconciliation after session/project edits and every two minutes while open. This is one-way app-to-Google sync and needs Google Cloud credentials before deployment.
 
+The public portfolio is separated from private project, client, session, and photo data. The artist writes public titles and summaries into `PortfolioProject` and deliberately chooses images copied into a distinct public bucket. Anonymous database grants expose only those public columns and selected photo paths; the original session images remain in the private bucket. The public route renders empty until an artist publishes content.
+
 ## Implementation choices
 
 - **Managed backend:** Supabase provides authentication, database access, and file storage without a separate application server. Authorization consequently depends on database, RPC, and storage policies; a UI redirect is not an access boundary.

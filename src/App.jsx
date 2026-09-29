@@ -4,6 +4,7 @@ import Footer from './components/layout/Footer.jsx';
 import ProjectsGrid from './features/projects/ProjectsGrid.jsx';
 import InsightsPage from './features/insights/InsightsPage.jsx';
 import GoogleCalendarIntegration from './components/GoogleCalendarIntegration.jsx';
+import PortfolioPage from './features/portfolio/PortfolioPage.jsx';
 import { useAuth } from './context/useAuth.js';
 import { Navigate } from 'react-router';
 import { useState } from 'react';
@@ -15,7 +16,7 @@ function App({ page = 'projects' }) {
   const [projectsVersion, setProjectsVersion] = useState(0);
 
   if (session === undefined) return <p role="status">Restoring your session…</p>;
-  if (!session) return <Navigate to="/login" replace />;
+  if (!session) return page === 'projects' ? <PortfolioPage /> : <Navigate to="/" replace />;
 
   return (
     <div className='app-layout-grid'>

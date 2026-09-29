@@ -80,6 +80,16 @@ The Google Calendar integration is prepared but **not enabled on the existing Su
 
 The integration writes events **from studio sessions to Google Calendar**. It does not import edits made in Google Calendar. Only future Upcoming/Rescheduled sessions are initially imported; existing mapped events remain as history when marked Completed. Cancelled and deleted sessions are removed. Event titles include the project title, but not client contact details or private notes. Times use Europe/London; sessions without a duration default to two hours. The app syncs after its scheduling/edit/deletion actions, when opened, and every two minutes while open. It does not run a server-side background job while the app is closed. Disconnect stops future writes but leaves already-created Google events in place.
 
+## Public portfolio
+
+The public portfolio migration, `supabase/migrations/202609280003_public_portfolio.sql`, was applied to the connected ZalmanTattoo project on 28 September 2026. Do not run it again there. It adds separate `PortfolioProject` and `PortfolioPhoto` tables plus a **public** `Portfolio Photos` bucket. The live check found zero public projects and photos, with the new bucket public and `Session Photos` still private. No existing project, session, or photo was published by the migration. Anonymous visitors can read only explicitly published titles, summaries, and selected public photo paths. They cannot read client records, private project/session fields, the source photo paths, or the private `Session Photos` bucket.
+
+The landing page is `/` for signed-out visitors and `/portfolio` for anyone, including a signed-in artist previewing it. Its featured image and project gallery use only selected public photos. Open a project in the studio dashboard, write a public title and short overview in **Public portfolio**, and publish that overview. Then choose individual photos with **Show on public page**, or tick the individual checkboxes when adding new session photos. Newly public photos are re-encoded to WebP at up to 2000 pixels to strip original filenames and image metadata before upload. Check the *image contents* yourself for faces, names, identifying marks, or other details you do not want to publish.
+
+Removing a photo from the public page or unpublishing a project removes its public copy. Removing a private photo, session, or project also attempts to clean up its public copy. Storage and database changes are separate operations; cleanup failures are shown and require administrator attention. Previously downloaded or cached public images cannot be recalled from visitors.
+
+The portfolio database regression test is `tests/portfolio-access.sql`; run it only against an empty disposable PostgreSQL fixture after the private-studio and public-portfolio migrations.
+
 ## Photos and cleanup
 
 New session records store storage object paths in `Session.img_urls`. Existing public URLs from the same Supabase project are converted to paths when read. The app requests signed URLs valid for one hour and refreshes them while the view stays open. Making the bucket private prevents old public URLs from serving the images directly.

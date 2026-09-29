@@ -7,9 +7,11 @@ import ScheduleSession from '../../components/modals/ScheduleSession';
 import supabase from '../../lib/supabaseClient';
 import UpcomingSession from './UpcomingSession';
 import PrivatePhoto from '../../components/PrivatePhoto.jsx';
-import { PHOTO_BUCKET, uploadPhotos, removePhotos } from '../../lib/photos.js';
+import { PHOTO_BUCKET, photoPath, uploadPhotos, removePhotos } from '../../lib/photos.js';
 import { PROJECT_STATUSES, SESSION_STATUSES, validateProject, validateSession, normalizePhone, isSessionOverdue, sessionNeedsReview, projectStatusLabel, sessionStatusLabel } from '../../lib/projectRules.js';
 import { notifyCalendarChanged } from '../../lib/googleCalendar.js';
+import PortfolioEditor from './PortfolioEditor.jsx';
+import { portfolioNotInstalled, portfolioPhotos, publishPhoto, removePublicFiles, unpublishPhoto } from '../../lib/portfolio.js';
 
 const statusClassNames = {
   'In Progress': 'status-pill--in-progress',
@@ -343,6 +345,7 @@ export function ProjectDetails({ onClose, projectId, onProjectChanged, initialSe
   const [selectedSession, setSelectedSession] = useState(null);
   const [isScheduling, setIsScheduling] = useState(false);
   const [sessionsVersion, setSessionsVersion] = useState(0);
+  const [portfolioVersion, setPortfolioVersion] = useState(0);
 
   const refreshProject = useCallback(async () => {
     const { data, error } = await supabase
@@ -392,8 +395,8 @@ export function ProjectDetails({ onClose, projectId, onProjectChanged, initialSe
     {project && <div className="project-details"><div className="project-details-header"><span className="project-card-kicker">Project workspace</span><h2>{project.project_title}</h2><p>{project.Client?.first_name} {project.Client?.last_name} <span aria-hidden="true">·</span> {projectStatusLabel(project.Status?.status)}</p></div>
       <div className="project-detail-sections"><section className="details-section sessions-section"><div className="details-section-heading"><div><span className="project-card-kicker">Sessions</span><h3>Session History</h3></div><button className="button button-secondary" type="button" onClick={() => setIsScheduling(true)}><CalendarPlus size={16} aria-hidden="true" />Schedule Session</button></div>
         <SessionGrid key={sessionsVersion} projectId={project.id} initialSessionId={initialSessionId} onSelectSession={setSelectedSession} />
-        {selectedSession && <SessionDetails key={selectedSession.id} session={selectedSession} projectId={project.id} onUpdated={(session) => { setSelectedSession(session); setSessionsVersion((version) => version + 1); onProjectChanged?.(); }} onDeleted={refreshSessions} />}
-      </section><details className="detail-disclosure"><summary><span>Project details <small>Design, pricing and notes</small></span><ChevronDown size={20} aria-hidden="true" /></summary><ProjectInfo project={project} onUpdated={(updated) => { setProject(updated); onProjectChanged?.(); }} onDeleted={() => { onProjectChanged?.(); onClose(); }} /></details><details className="detail-disclosure"><summary><span>Client details <small>Contact information</small></span><ChevronDown size={20} aria-hidden="true" /></summary><ClientInfo client={project.Client} clientId={project.client_id} onUpdated={(client) => { setProject((current) => ({ ...current, Client: client })); onProjectChanged?.(); }} /></details></div>
+        {selectedSession && <SessionDetails key={`${selectedSession.id}-${portfolioVersion}`} session={selectedSession} projectId={project.id} onUpdated={(session) => { setSelectedSession(session); setSessionsVersion((version) => version + 1); onProjectChanged?.(); }} onDeleted={refreshSessions} />}
+      </section><PortfolioEditor projectId={project.id} onChanged={() => setPortfolioVersion((version) => version + 1)} /><details className="detail-disclosure"><summary><span>Project details <small>Design, pricing and notes</small></span><ChevronDown size={20} aria-hidden="true" /></summary><ProjectInfo project={project} onUpdated={(updated) => { setProject(updated); onProjectChanged?.(); }} onDeleted={() => { onProjectChanged?.(); onClose(); }} /></details><details className="detail-disclosure"><summary><span>Client details <small>Contact information</small></span><ChevronDown size={20} aria-hidden="true" /></summary><ClientInfo client={project.Client} clientId={project.client_id} onUpdated={(client) => { setProject((current) => ({ ...current, Client: client })); onProjectChanged?.(); }} /></details></div>
     </div>}
   </div></div>;
 }
@@ -467,6 +470,9 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
   const [isEditing, setIsEditing] = useState(false);
   const [statuses, setStatuses] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [publicFileIndexes, setPublicFileIndexes] = useState([]);
+  const [portfolioProject, setPortfolioProject] = useState(null);
+  const [publicPhotos, setPublicPhotos] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [success, setSuccess] = useState('');
@@ -498,9 +504,28 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
       });
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      supabase.from('PortfolioProject').select('id, published').eq('project_id', projectId).maybeSingle(),
+      supabase.from('PortfolioPhoto').select('id, source_path, public_path').eq('session_id', session.id),
+    ]).then(([projectResult, photosResult]) => {
+      if (!active) return;
+      if (!projectResult.error) setPortfolioProject(projectResult.data);
+      if (!photosResult.error) setPublicPhotos(photosResult.data ?? []);
+    });
+    return () => { active = false; };
+  }, [projectId, session.id]);
+
   const setField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
   const storage = supabase.storage.from(PHOTO_BUCKET);
   const storageUrl = import.meta.env.VITE_SUPABASE_URL;
+  const findPublicPhoto = (value) => {
+    try {
+      const path = photoPath(value, storageUrl);
+      return publicPhotos.find((photo) => photo.source_path === path);
+    } catch { return null; }
+  };
 
   async function save() {
     setFormError(''); setSuccess(''); setIsSaving(true);
@@ -516,7 +541,23 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
       }).eq('id', session.id).select('*, Status (id, status)').single();
       if (error) throw error;
       setForm((current) => ({ ...current, img_urls: data.img_urls ?? [] }));
-      setIsEditing(false); setSelectedFiles([]); setSuccess('Session saved.'); onUpdated(data); notifyCalendarChanged();
+      setIsEditing(false); setSelectedFiles([]); setPublicFileIndexes([]);
+      let publicationError = false;
+      if (portfolioProject?.published) {
+        for (const index of publicFileIndexes) {
+          try {
+            const published = await publishPhoto(supabase, {
+              portfolioProjectId: portfolioProject.id, sessionId: session.id,
+              source: uploaded[index], file: selectedFiles[index],
+            });
+            setPublicPhotos((current) => [...current, published]);
+          } catch { publicationError = true; }
+        }
+      }
+      setSuccess(publicationError
+        ? 'Session saved, but some selected photos could not be published. Use the photo controls to retry.'
+        : 'Session saved.');
+      onUpdated(data); notifyCalendarChanged();
     } catch (error) {
       let cleanupMessage = '';
       try { await removePhotos(storage, uploaded, storageUrl); }
@@ -529,6 +570,11 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
     if (!window.confirm('Remove this photo from the session?')) return;
     setFormError(''); setIsSaving(true);
     try {
+      const published = findPublicPhoto(value);
+      if (published) {
+        await unpublishPhoto(supabase, published);
+        setPublicPhotos((current) => current.filter((photo) => photo.id !== published.id));
+      }
       const next = form.img_urls.filter((item) => item !== value);
       const { data, error } = await supabase.from('Session').update({ img_urls: next }).eq('id', session.id).select('*, Status (id, status)').single();
       if (error) throw error;
@@ -539,13 +585,38 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
     finally { setIsSaving(false); }
   }
 
+  async function togglePublicPhoto(value) {
+    setFormError(''); setSuccess(''); setIsSaving(true);
+    try {
+      const existing = findPublicPhoto(value);
+      if (existing) {
+        await unpublishPhoto(supabase, existing);
+        setPublicPhotos((current) => current.filter((photo) => photo.id !== existing.id));
+        setSuccess('Photo removed from the public portfolio.');
+      } else {
+        if (!portfolioProject?.published) throw new Error('Publish a public project overview first.');
+        const published = await publishPhoto(supabase, {
+          portfolioProjectId: portfolioProject.id, sessionId: session.id, source: value,
+        });
+        setPublicPhotos((current) => [...current, published]);
+        setSuccess('Photo added to the public portfolio.');
+      }
+    } catch (problem) { setFormError(messageFor(problem, 'Could not change public photo visibility.')); }
+    finally { setIsSaving(false); }
+  }
+
   async function deleteSession() {
     if (!window.confirm('Delete this session? This cannot be undone.')) return;
     setIsSaving(true); setFormError('');
     try {
+      const { data: published, error: portfolioError } = await supabase.from('PortfolioPhoto')
+        .select('public_path').eq('session_id', session.id);
+      if (portfolioError && !portfolioNotInstalled(portfolioError)) throw portfolioError;
       const { error } = await supabase.from('Session').delete().eq('id', session.id);
       if (error) throw error;
       notifyCalendarChanged();
+      try { await removePublicFiles(supabase, (published ?? []).map((photo) => photo.public_path)); }
+      catch { window.alert('Session deleted, but its public portfolio files need administrator cleanup.'); }
       try { await removePhotos(storage, session.img_urls ?? [], storageUrl); }
       catch { window.alert('Session deleted, but its private photo files need administrator cleanup.'); }
       onDeleted();
@@ -560,7 +631,10 @@ function SessionDetails({ session, projectId, onUpdated, onDeleted }) {
     <SessionField editing={isEditing} label="Duration"><input type="time" value={form.duration} onChange={(event) => setField('duration', event.target.value)} /></SessionField>
     <SessionField editing={isEditing} label="Amount paid"><input type="number" min="0" step="0.01" value={form.amount_paid} onChange={(event) => setField('amount_paid', event.target.value)} /></SessionField>
     <SessionField editing={isEditing} label="Session notes"><textarea rows="3" value={form.session_notes} onChange={(event) => setField('session_notes', event.target.value)} /></SessionField>
-    <div className="details-row"><span className="details-label">Photos</span><div className="session-photo-grid">{form.img_urls.map((url) => <span className="session-photo-wrap" key={url}><PrivatePhoto className="session-photo" path={url} alt="Session work" />{isEditing && <button className="photo-remove" type="button" disabled={isSaving} onClick={() => removePhoto(url)} aria-label="Remove photo">×</button>}</span>)}{isEditing && <div className="form-field"><label htmlFor={`session-photos-${session.id}`}>Add photos</label><input id={`session-photos-${session.id}`} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} /></div>}</div></div>
+    <div className="details-row"><span className="details-label">Photos</span><div className="session-photo-grid">{form.img_urls.map((url) => {
+      const isPublic = Boolean(findPublicPhoto(url));
+      return <span className="session-photo-wrap" key={url}><PrivatePhoto className="session-photo" path={url} alt="Session work" />{isEditing && <button className="photo-remove" type="button" disabled={isSaving} onClick={() => removePhoto(url)} aria-label="Remove photo">×</button>}<button className="photo-publish-button" type="button" disabled={isSaving || (!isPublic && !portfolioProject?.published)} onClick={() => togglePublicPhoto(url)}>{isPublic ? 'Remove from public page' : 'Show on public page'}</button></span>;
+    })}{isEditing && <div className="form-field"><label htmlFor={`session-photos-${session.id}`}>Add photos</label><input id={`session-photos-${session.id}`} type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => { setSelectedFiles(Array.from(event.target.files ?? [])); setPublicFileIndexes([]); }} />{selectedFiles.length > 0 && <div className="new-photo-publish-list">{selectedFiles.map((file, index) => <label key={`${file.name}-${index}`}><input type="checkbox" checked={publicFileIndexes.includes(index)} disabled={!portfolioProject?.published} onChange={(event) => setPublicFileIndexes((current) => event.target.checked ? [...current, index] : current.filter((value) => value !== index))} /><span>Show “{file.name}” on public page</span></label>)}</div>}{!portfolioProject?.published && <small>Publish a public project overview first to select photos.</small>}</div>}</div></div>
     {isEditing && <div className="form-actions"><button className="button button-primary" type="button" onClick={save} disabled={isSaving}><Check size={16} aria-hidden="true" />{isSaving ? 'Saving…' : 'Save session'}</button></div>}
     {formError && <p className="form-error" role="alert">{formError}</p>}{success && <p className="form-success" role="status">{success}</p>}
   </div>;
@@ -619,9 +693,17 @@ function ProjectInfo({ project, onUpdated, onDeleted }) {
     if (!window.confirm('Delete this project and all its sessions? This cannot be undone.')) return;
     setIsSaving(true); setFormError('');
     try {
+      const { data: portfolio, error: portfolioError } = await supabase.from('PortfolioProject')
+        .select('id').eq('project_id', project.id).maybeSingle();
+      if (portfolioError && !portfolioNotInstalled(portfolioError)) throw portfolioError;
+      const publicPaths = portfolio
+        ? (await portfolioPhotos(supabase, portfolio.id)).map((photo) => photo.public_path)
+        : [];
       const { data: photos, error } = await supabase.rpc('studio_delete_project', { p_project_id: project.id });
       if (error) throw error;
       notifyCalendarChanged();
+      try { await removePublicFiles(supabase, publicPaths); }
+      catch { window.alert('Project deleted, but its public portfolio files need administrator cleanup.'); }
       try { await removePhotos(supabase.storage.from(PHOTO_BUCKET), photos ?? [], import.meta.env.VITE_SUPABASE_URL); }
       catch { window.alert('Project deleted, but its private photo files need administrator cleanup.'); }
       onDeleted();

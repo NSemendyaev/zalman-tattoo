@@ -1,6 +1,7 @@
 import App from "./App";
 import { createBrowserRouter } from "react-router";
 import LoginPage from "./features/auth/LoginPage.jsx";
+import PortfolioPage from "./features/portfolio/PortfolioPage.jsx";
 
 // createBrowserRouter maps each browser URL to the React component that should
 // render for that route. For example, visiting /login shows <LoginPage />.
@@ -8,4 +9,5 @@ export const router = createBrowserRouter([
     { path: "/", element: <App /> },
     { path: "/insights", element: <App page="insights" /> },
     { path: "/login", element: <LoginPage /> },
+    { path: "/portfolio", element: <PortfolioPage /> },
 ]);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LogIn, X } from 'lucide-react';
-import { Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate } from 'react-router';
 import { useAuth } from '../../context/useAuth.js';
 
 export default function LoginPage() {
@@ -60,6 +60,7 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+          <Link className="login-portfolio-link" to="/portfolio">View public portfolio</Link>
         </div>
       </div>
     </>
